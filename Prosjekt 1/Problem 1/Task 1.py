@@ -15,24 +15,8 @@ from matplotlib import cm
 def I(i, j, N):
     return j * (N + 1) + i
 
-# A class to hold the parameters of the BVP
-# -mu Delta u + V * Nabla u = f, on (a,b)x(a,b), u = g on Boundary, with Dirichlet boundary conditions
-class BVP(object):
-    def __init__(self, f, V, gs, gn, gw, ge, a=0, b=1, mu=1, uexact=None, I=I):
-        self.f = f       # Source function
-        self.V = V       # function representing the vector
-        self.gs = gs     # S boundary condition
-        self.gn = gn     # N boundary condition
-        self.gw = gw     # W boundary condition
-        self.ge = ge     # E boundary condition
-        self.a = a       # Interval
-        self.b = b
-        self.mu = mu    # constant mu
-        self.uexact = uexact  # The exact solution, if known.
-        self.I = I      # index mapping
 
-
-def get_Axy(bvp, N):
+def get_Axy_square(bvp, N):
     # N, Number of intervals
     # Gridsize
     h = 1 / N
@@ -40,7 +24,7 @@ def get_Axy(bvp, N):
     Ni = N + 1
     Ni2 = Ni * Ni
     # Make the grid
-    x, y = np.ogrid[0:1:Ni * 1j, 0:1:Ni * 1j]
+    x, y = np.ogrid[bvp.a:bvp.b:Ni * 1j, bvp.a:bvp.b:Ni * 1j]
 
     # Define zero matrix A of right size and insert 0
     A = sparse.dok_matrix((Ni2, Ni2))
@@ -76,6 +60,24 @@ def get_Axy(bvp, N):
 
     return A, x, y
 
+# A class to hold the parameters of the BVP
+# -mu div grad u + V * grad u = f, on (a,b)x(a,b), u = g on Boundary, with Dirichlet boundary conditions
+class BVP(object):
+    def __init__(self, f, V, gs, gn, gw, ge, a=0, b=1, mu=1, uexact=None, I=I, get_Axy=get_Axy_square):
+        self.f = f       # Source function
+        self.V = V       # function representing the vector
+        self.gs = gs     # S boundary condition
+        self.gn = gn     # N boundary condition
+        self.gw = gw     # W boundary condition
+        self.ge = ge     # E boundary condition
+        self.a = a       # Interval
+        self.b = b
+        self.mu = mu    # constant mu
+        self.uexact = uexact  # The exact solution, if known.
+        self.I = I      # index mapping
+        self.get_Axy = get_Axy # function to get matrix A and grid x,y
+
+
 
 def apply_bcs(F, G, N, I):
     # Add boundary values related to unknowns from the first and last grid ROW
@@ -101,7 +103,7 @@ def g(x, y, bvp, N):
 
 def solve_BVP_and_plot(bvp, N, test, plot=True, neumann=True):
     # Make grid and matrix
-    A, x, y = get_Axy(bvp, N)
+    A, x, y = bvp.get_Axy(bvp, N)
     F = bvp.f(x, y).ravel()
 
     if neumann:
@@ -122,7 +124,7 @@ def solve_BVP_and_plot(bvp, N, test, plot=True, neumann=True):
     try:
         U_exact = bvp.uexact(x, y)
         err = np.abs(U - U_exact)
-        print('The error is {:.2e}'.format(np.max(np.max(err))) + " N = " + str(N))
+        print('The error is {:.2e}'.format(np.max(np.max(err))) + ", N = " + str(N))
 
         if plot:
             plot2D(x, y, U_exact, "Exact solution of " + test)
@@ -222,7 +224,7 @@ def TEST_1(N, P=4):
     print("Test convergence for TEST_1")
     Hconv, Econv, order = convergence(test, P=P)
     plot_convergence(Hconv, Econv, order)
-    print("Convergence order: ", order)
+    print("Convergence order: " + "{:.2f}".format(order))
     print("------------------------------------------")
 
 
@@ -248,7 +250,7 @@ def TEST_2(N, P=4):
     print("Test convergence for TEST_2")
     Hconv, Econv, order = convergence(test, P=P)
     plot_convergence(Hconv, Econv, order)
-    print("Convergence order: ", order)
+    print("Convergence order: " + "{:.2f}".format(order))
     print("------------------------------------------")
 
 
@@ -275,7 +277,7 @@ def TEST_3(N, P=4):
     print("Test convergence for TEST_3")
     Hconv, Econv, order = convergence(test, P=P)
     plot_convergence(Hconv, Econv, order)
-    print("Convergence order: ", order)
+    print("Convergence order: " + "{:.2f}".format(order))
     print("------------------------------------------")
 
 
