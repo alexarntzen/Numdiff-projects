@@ -11,13 +11,16 @@ from mpl_toolkits.mplot3d import Axes3D     # For 3-d plot
 from matplotlib import cm
 
 
+# Define index mapping
+def I(i, j, N):
+    return j * (N + 1) + i
+
 # A class to hold the parameters of the BVP
 # -mu Delta u + V * Nabla u = f, on (a,b)x(a,b), u = g on Boundary, with Dirichlet boundary conditions
 class BVP(object):
-    def __init__(self, f, V, Vb, gs, gn, gw, ge, a=0, b=1, mu=1, uexact=None):
+    def __init__(self, f, V, gs, gn, gw, ge, a=0, b=1, mu=1, uexact=None, I=I):
         self.f = f       # Source function
-        self.V = V       # function representing the vector on grid
-        self.Vb = Vb     # function representing the vector on boundary
+        self.V = V       # function representing the vector
         self.gs = gs     # S boundary condition
         self.gn = gn     # N boundary condition
         self.gw = gw     # W boundary condition
@@ -25,156 +28,155 @@ class BVP(object):
         self.a = a       # Interval
         self.b = b
         self.mu = mu    # constant mu
-        self.uexact = uexact # The exact solution, if known.
+        self.uexact = uexact  # The exact solution, if known.
+        self.I = I      # index mapping
 
 
-
-def solve_BVP_and_plot(bvp, N, test, plot=True):
-    #N, Number of intervals
-
-    # Lag gitteret
-    x = np.linspace(bvp.a, bvp.b, N + 1)
-    y = x.copy()
+def get_Axy(bvp, N):
+    # N, Number of intervals
+    # Gridsize
     h = 1 / N
-    muhh = -bvp.mu / (h * h)
+    # Total number of unknowns
+    Ni = N + 1
+    Ni2 = Ni * Ni
+    # Make the grid
+    x, y = np.ogrid[0:1:Ni * 1j, 0:1:Ni * 1j]
 
-    # Inner points
-    xi = x[1:-1]
-    yi = y[1:-1]
+    # Define zero matrix A of right size and insert 0
+    A = sparse.dok_matrix((Ni2, Ni2))
+    # Define FD entries of A
+    muhh = - bvp.mu / (h * h)
+    h2 = 1 / (2 * h)
 
-    Xi, Yi = np.meshgrid(xi, yi)
-    Ni = N - 1       # Number of inner points in each direction
-    Ni2 = Ni * Ni    # Number of inner points in total
+    # get V
+    v1, v2 = bvp.V(x, y)
+    v1 = v1.ravel()
+    v2 = v2.ravel()
+    for i in range(1, N):
+        for j in range(1, N):
+            index = I(i, j, N)
+            A[index, index] = -4 * muhh  # U_ij, U_p
+            A[index, index - N - 1] = muhh - v2[i] * h2  # U_{i,j-1}, U_s
+            A[index, index + N + 1] = muhh + v2[i] * h2  # U_{i,j+1}, U_n
+            A[index, index - 1] = muhh - v1[j] * h2  # U_{i-1,j}, U_w
+            A[index, index + 1] = muhh + v1[j] * h2  # U_{i+1,j}, U_e
+
+        # Incorporate boundary conditions
+        # Add boundary values related to unknowns from the first and last grid ROW
+        for j in [0, N]:
+            for i in range(0, Ni):
+                index = I(i, j, N)
+                A[index, index] = 1
+
+        # Add boundary values related to unknowns from the first and last grid COLUMN
+        for i in [0, N]:
+            for j in range(0, Ni):
+                index = I(i, j, N)
+                A[index, index] = 1
+
+    return A, x, y
 
 
-    # Construct a sparse A-matrix
+def apply_bcs(F, G, N, I):
+    # Add boundary values related to unknowns from the first and last grid ROW
+    bc_indices = np.array([I(i, j, N) for j in [0, N] for i in range(0, N + 1)])
+    F[bc_indices] = G[bc_indices]
 
-    # -mu * Delta u
-    B = sparse.diags([1, -4, 1], [-1, 0, 1], shape=(Ni, Ni), format="lil")
-    A = sparse.kron(sparse.eye(Ni), B)
-    A += sparse.diags([1, 1], [-Ni, Ni], shape=(Ni2, Ni2), format="lil")
-    A *= muhh
+    # Add boundary values related to unknowns from the first and last grid COLUMN
+    bc_indices = np.array([I(i, j, N) for i in [0, N] for j in range(0, N + 1)])
+    F[bc_indices] = G[bc_indices]
 
-    #v * grad u, v represents the vector in the grid
-    v = bvp.V(Xi, Yi, Ni, Ni2)
-    C = sparse.diags([-v[0, 1:], v[0, :-1]], [-1, 1], shape=(Ni2, Ni2), format="lil")  # V_1 * (Ue - Uw)
-    D = sparse.diags([-v[1, 1:], v[1, :-1]], [-Ni, Ni], shape=(Ni2, Ni2), format="lil")  # V_1 * (Un - Us)
-    A += (C + D) / (2 * h)
-    # finished A
-    A = A.tocsr()  # Konverter til csr-format (nødvendig for spsolve)
+    return F
 
-    # Construct the right hand side for -mu * Delta u
-    Db = np.zeros(Ni2)
-    # Include the boundary conditions for -mu * Delta u
-    Db[0:Ni] -= bvp.gs(xi)                         # y=0
-    Db[Ni2-Ni:Ni2] -= bvp.gn(xi)                   # y=1
-    Db[0:Ni2:Ni] -= bvp.gw(yi)                     # x=0
-    Db[Ni-1:Ni2:Ni] -= bvp.ge(yi)                  # x=1
-    Db *= muhh
-    # Construct the right hand side for V * Nabla u
-    Nb = np.zeros(Ni2)
-    # Get vector representation for boundary
-    vb = bvp.Vb(xi, yi, Ni, Ni2)
-    # Include the boundary conditions for V * Nabla u
-    Nb[0:Ni] += vb[1] * bvp.gs(xi)                         # y=0
-    Nb[Ni2 - Ni:Ni2] -= vb[1] * bvp.gn(xi)                 # y=1
-    Nb[0:Ni2:Ni] += vb[0] * bvp.gw(yi)                     # x=0
-    Nb[Ni - 1:Ni2:Ni] -= vb[0] * bvp.ge(yi)                # x=1
-    Nb *= 2 * h
-    # Include the source funtions
 
-    b = Db + Nb + bvp.f(Xi, Yi).flatten()
+def g(x, y, bvp, N):
+    G = np.zeros((N+1, N+1))
+    G[:, 0] = bvp.gs(x).ravel()
+    G[:, -1] = bvp.gn(x).ravel()
+    G[0, :] = bvp.gw(y).ravel()
+    G[-1, :] = bvp.ge(y).ravel()
+    return G
 
-    # Solve the system.
-    Ui = spsolve(A, b)
 
-    # Make an array to store the solution
-    U = np.zeros((N+1, N+1))
 
-    # Reshape the Ui-vector to an array, and insert into Ui.
-    U[1:-1, 1:-1] = np.reshape(Ui, (Ni, Ni))
+def solve_BVP_and_plot(bvp, N, test, plot=True, neumann=True):
+    # Make grid and matrix
+    A, x, y = get_Axy(bvp, N)
+    F = bvp.f(x, y).ravel()
 
-    # Include the boundary conditions
-    U[0, :] = bvp.gs(x)
-    U[N, :] = bvp.gn(x)
-    U[:, 0] = bvp.gw(y)
-    U[:, N] = bvp.ge(y)
+    if neumann:
+        G = g(x, y, bvp, N).ravel()
+    else:
+        G = np.zeros_like(F)  # placeholder
 
-    if N == 4:
-        # For inspection: Print A and b
-        print('A =\n ', A.toarray())           # A konverteres til en full matrise først
-        print('\nb=\n', b)
+    # Apply bcs
+    F = apply_bcs(F, G, N, I)
 
-    X, Y = np.meshgrid(x, y)
+    # Solve
+    A_csr = A.tocsr()
+    U = spsolve(A_csr, F).reshape((N+1, N+1))
+
     if plot:
-        # Plot the solution
-        fig = plt.figure(1)
-        ax = fig.gca(projection='3d')
-        ax.plot_surface(X, Y, U, cmap=cm.coolwarm)  # Surface-plot
-        plt.xlabel('x')
-        plt.ylabel('y')
-        plt.title('Løsning av ligningen gitt i ' + test)
-    try:
-        U_exact = bvp.uexact(X, Y)
-        # Print out the numerical solution and the error
-        if N == 4:
-            print('\nU=\n', U)
-            print("N = ", N)
-        print('The error is {:.2e}'.format(np.max(np.max(abs(U - U_exact)))))
-        if plot:
-            # Plot the exact-solution
-            fig = plt.figure(2)
-            X, Y = np.meshgrid(x, y)
-            ax = fig.gca(projection='3d')
-            ax.plot_surface(X, Y, U_exact, cmap=cm.coolwarm)  # Surface-plot
-            plt.xlabel('x')
-            plt.ylabel('y')
-            plt.title('Løsning av ligningen gitt i ' + test + ' exact')
-            plt.show()
+        plot2D(x, y, U, "Numerical solution of " + test)
 
-            # Plot the error
-            fig = plt.figure(2)
-            X, Y = np.meshgrid(x, y)
-            ax = fig.gca(projection='3d')
-            ax.plot_surface(X, Y, np.abs(U - U_exact), cmap=cm.coolwarm)  # Surface-plot
-            plt.xlabel('x')
-            plt.ylabel('y')
-            plt.title('error  i ' + test)
-            plt.show()
-        return U, U_exact
+    try:
+        U_exact = bvp.uexact(x, y)
+        err = np.abs(U - U_exact)
+        print('The error is {:.2e}'.format(np.max(np.max(err))) + " N = " + str(N))
+
+        if plot:
+            plot2D(x, y, U_exact, "Exact solution of " + test)
+            plot2D(x, y, err, "Error of " + test)
+
+        return err
+
     except:
         print("No excat solution given")
-        return U, None
+        return None
+
+
+
+def plot2D(X, Y, Z, title=""):
+    fig = plt.figure(figsize=(8, 6), dpi=100)
+    ax = fig.gca(projection='3d')
+    ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=cm.coolwarm)  # Surface-plot
+    # Set initial view angle
+    ax.view_init(30, 225)
+
+    # Set labels and show figure
+    ax.set_xlabel('$x$')
+    ax.set_ylabel('$y$')
+    ax.set_title(title)
+    plt.show()
 
 
 def convergence(bvp, P):
     # Measure the error for different stepsizes.
     # Require bvp.uexact to be set.
     # Number of different stepsizes
-    Nconv = np.zeros(P)  #log(h) = log(1/N) = -log(N)
+    Hconv = np.zeros(P)  #log(h) = log(1/N) = -log(N)
     Econv = np.zeros(P)
     N = 10  # The least number of intervals
     for p in range(P):
-        U, U_exact = solve_BVP_and_plot(bvp, N, "", plot=False)
-        Eh = U_exact-U
-        Econv[p] = np.max(np.max(np.abs(Eh)))
-        Nconv[p] = N
+        Eh = solve_BVP_and_plot(bvp, N, "", plot=False)
+        Econv[p] = np.max(np.max(Eh))
+        Hconv[p] = 1 / N
         N *= 2  # Double the number of intervals (or )
-    order = np.polyfit(np.log(Nconv), np.log(Econv), 1)[0]   # Measure the order
-    return Nconv, Econv, order
+    order = np.polyfit(np.log(Hconv), np.log(Econv), 1)[0]   # Measure the order
+    return Hconv, Econv, order
 
-def plot_convergence(N, E, p):
-    plt.loglog(N, E, 'o-', label='p={:.2f}'.format(p))
+def plot_convergence(H, E, p):
+    plt.loglog(H, E, 'o-', label='p={:.2f}'.format(p))
     """vet ikke denne helt"""
     #plt.loglog(N, (1) ** 2 * 7 / 16 * np.exp(1), '--', label='upper bound')
     plt.grid('on')
-    plt.xlabel('N')
+    plt.xlabel('h')
     plt.ylabel('error')
     plt.legend()
     plt.show()
 
 
-def TEST_0(N, P=4):
+def TEST_0(N, P=4): #As given in exercise
     print("------------------------------------------")
     print("Test 0, N = ", N)
     # Boundary conditions and source functions.
@@ -182,24 +184,24 @@ def TEST_0(N, P=4):
     gn = lambda x: 2+x**3
     gw = lambda y: 2*y**2
     ge = lambda y: 1+2*y**2
-    f = lambda x, y: 6*x+4
+    f = lambda x, y: 6*x+4 + 0*y
     uexact = lambda x, y: x ** 3 + 2 * y ** 2
 
-    def V(x, y, Ni, Ni2):
-        return np.zeros(shape=(2, Ni, Ni)).reshape((2, Ni2))
-    def Vb(x, y, Ni, Ni2):
-        return np.zeros(shape=(2, Ni))
+    def V(x, y):
+        n = len(x)
+        return np.zeros(n), np.zeros(n)
 
-    test = BVP(f, V, Vb, gs, gn, gw, ge, mu=-1, uexact=uexact)
+    test = BVP(f, V, gs, gn, gw, ge, mu=-1, uexact=uexact)
     solve_BVP_and_plot(test, N, "TEST_0")
-    print("Test convergence for TEST_0")
-    Nconv, Econv, order = convergence(test, P=P)
-    plot_convergence(Nconv, Econv, order)
-    print("Convergence order: ", order)
     print("------------------------------------------")
+    #print("Test convergence for TEST_0")
+    #Hconv, Econv, order = convergence(test, P=P)
+    #plot_convergence(Hconv, Econv, order)
+    #print("Convergence order: ", order)
+    #print("------------------------------------------")
 
 
-def TEST_1(N, P=8):
+def TEST_1(N, P=4):
     print("------------------------------------------")
     print("Test 1, N = ", N)
     # Boundary conditions and source functions.
@@ -207,39 +209,99 @@ def TEST_1(N, P=8):
     gn = lambda x: np.sin(x) * np.sin(1)
     gw = lambda y: np.zeros_like(y)
     ge = lambda y: np.sin(1) * np.sin(y)
-    f = lambda x, y: 2 * np.sin(x) * np.sin(y) + np.sin(x)*np.cos(y) + np.cos(x) * np.sin(y)
+    f = lambda x, y: 2 * np.sin(x) * np.sin(y)
     uexact = lambda x, y: np.sin(x) * np.sin(y)
 
+    def V(x, y):
+        n = len(x)
+        return np.zeros(n), np.zeros(n)
 
-    def V(x, y, Ni, Ni2):
-        v = np.ones(Ni2)
-        return np.array([v, v])
-    def Vb(x, y, Ni, Ni2):
-        v = np.ones(Ni)
-        return np.array([v, v])
-
-    test = BVP(f, V, Vb, gs, gn, gw, ge, uexact=uexact)
+    test = BVP(f, V, gs, gn, gw, ge, uexact=uexact)
     solve_BVP_and_plot(test, N, "TEST_1")
     print("------------------------------------------")
     print("Test convergence for TEST_1")
-    Nconv, Econv, order = convergence(test, P=P)
-    plot_convergence(Nconv, Econv, order)
+    Hconv, Econv, order = convergence(test, P=P)
+    plot_convergence(Hconv, Econv, order)
     print("Convergence order: ", order)
     print("------------------------------------------")
 
 
+def TEST_2(N, P=4):
+    print("------------------------------------------")
+    print("Test 2, N = ", N)
+    # Boundary conditions and source functions.
+    gs = lambda x: np.zeros_like(x)
+    gn = lambda x: np.sin(x) * np.sin(1)
+    gw = lambda y: np.zeros_like(y)
+    ge = lambda y: np.sin(1) * np.sin(y)
+    f = lambda x, y: 2 * np.sin(x) * np.sin(y) + np.sin(x) * np.cos(y) + np.cos(x) * np.sin(y)
+    uexact = lambda x, y: np.sin(x) * np.sin(y)
+
+
+    def V(x, y):
+        n = len(x)
+        return np.ones(n), np.ones(n)
+
+    test = BVP(f, V, gs, gn, gw, ge, uexact=uexact)
+    solve_BVP_and_plot(test, N, "TEST_2")
+    print("------------------------------------------")
+    print("Test convergence for TEST_2")
+    Hconv, Econv, order = convergence(test, P=P)
+    plot_convergence(Hconv, Econv, order)
+    print("Convergence order: ", order)
+    print("------------------------------------------")
+
+
+def TEST_3(N, P=4):
+    print("------------------------------------------")
+    print("Test 3, N = ", N)
+    # Boundary conditions and source functions.
+    gs = lambda x: np.zeros_like(x)
+    gn = lambda x: np.zeros_like(x)
+    gw = lambda y: np.zeros_like(y)
+    ge = lambda y: np.zeros_like(y)
+    f = lambda x, y: 5 * np.pi * np.pi * np.sin(1 * np.pi * x) * np.sin(2 * np.pi * y) \
+                     + np.pi * np.cos(1 * np.pi * x) * np.sin(2 * np.pi * y) + 2 * np.pi * np.sin(1 * np.pi * x) * np.cos(2 * np.pi * y)
+    uexact = lambda x, y: np.sin(1 * np.pi * x) * np.sin(2 * np.pi * y)
+
+
+    def V(x, y):
+        n = len(x)
+        return np.ones(n), np.ones(n)
+
+    test = BVP(f, V, gs, gn, gw, ge, uexact=uexact)
+    solve_BVP_and_plot(test, N, "TEST_3")
+    print("------------------------------------------")
+    print("Test convergence for TEST_3")
+    Hconv, Econv, order = convergence(test, P=P)
+    plot_convergence(Hconv, Econv, order)
+    print("Convergence order: ", order)
+    print("------------------------------------------")
+
+
+def Task_1d(N, P=4):
+    print("------------------------------------------")
+    print("Task 1d, N = ", N)
+    # Boundary conditions and source functions.
+    gs = lambda x: np.zeros_like(x)
+    gn = lambda x: np.zeros_like(x)
+    gw = lambda y: np.zeros_like(y)
+    ge = lambda y: np.zeros_like(y)
+    f = lambda x, y: np.ones((len(x), len(x)))
+
+    def V(x, y):
+        return y, -x
+
+    test = BVP(f, V, gs, gn, gw, ge, mu=1e-2)
+    solve_BVP_and_plot(test, N, "Task 1d")
+    print("------------------------------------------")
 
 
 
 
 
-
-
-def V_d(x, y, Ni, Ni2):
-    return np.array([y, -x]).reshape((2, Ni2))
-
-
-
-TEST_0(10)
-TEST_1(10, P=4)
-
+TEST_0(4)
+TEST_1(10)
+TEST_2(10)
+TEST_3(10)
+Task_1d(100)
