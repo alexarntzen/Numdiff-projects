@@ -12,7 +12,6 @@ from matplotlib import cm
 
 
 
-
 #Denne kan brukes når med Dirichlet conditions
 class finite_difference_BVP:
     @staticmethod
@@ -56,8 +55,8 @@ class grid_BVP(finite_difference_BVP):
 
 class nonlinearPisson(grid_BVP):
 
-    def __init__(self):
-        grid_BVP.__init__(self)
+    def __init__(self,N,f,g,dim):
+        grid_BVP.__init__(self,N,f,g,dim)
+
     def constanScheme(self, vector):
         return np.array(([0, 1, 0], [1, -4, 1], [0, 1, 0])) * self.h ** 2
-
