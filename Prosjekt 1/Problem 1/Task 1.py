@@ -16,54 +16,165 @@ def I(i, j, N):
     return j * (N + 1) + i
 
 
-def get_Axy_square(bvp, N):
-    # N, Number of intervals
-    # Gridsize
-    h = 1 / N
-    # Total number of unknowns
-    Ni = N + 1
-    Ni2 = Ni * Ni
+def BC_square(A, N, bvp):
+    # Add boundary values related to unknowns from the first and last grid ROW
+    for j in [0, N]:
+        for i in range(0, N + 1):
+            index = bvp.I(i, j, N)
+            A[index, index] = 1
+
+    # Add boundary values related to unknowns from the first and last grid COLUMN
+    for i in [0, N]:
+        for j in range(0, N + 1):
+            index = bvp.I(i, j, N)
+            A[index, index] = 1
+
+    return A
+
+
+def BC_circle_quadrant(A, N, bvp):
+    # Add boundary values for the square first
+    A = BC_square(A, N, bvp)
     # Make the grid
-    x, y = np.ogrid[bvp.a:bvp.b:Ni * 1j, bvp.a:bvp.b:Ni * 1j]
-
-    # Define zero matrix A of right size and insert 0
-    A = sparse.dok_matrix((Ni2, Ni2))
-    # Define FD entries of A
-    muhh = - bvp.mu / (h * h)
-    h2 = 1 / (2 * h)
-
-    # get V
-    v1, v2 = bvp.V(x, y)
-    v1 = v1.ravel()
-    v2 = v2.ravel()
+    x, y = np.ogrid[bvp.a:bvp.b:(N + 1) * 1j, bvp.a:bvp.b:(N + 1) * 1j]
     for i in range(1, N):
         for j in range(1, N):
-            index = I(i, j, N)
-            A[index, index] = -4 * muhh  # U_ij, U_p
-            A[index, index - N - 1] = muhh - v2[i] * h2  # U_{i,j-1}, U_s
-            A[index, index + N + 1] = muhh + v2[i] * h2  # U_{i,j+1}, U_n
-            A[index, index - 1] = muhh - v1[j] * h2  # U_{i-1,j}, U_w
-            A[index, index + 1] = muhh + v1[j] * h2  # U_{i+1,j}, U_e
+            if x[i, 0] ** 2 + y[0, j] ** 2 >= bvp.c:
+                index = bvp.I(i, j, N)
+                v1, v2 = bvp.V(x[i, 0], y[0, j])
+                A[index, index] = 1  # U_ij
 
-        # Incorporate boundary conditions
-        # Add boundary values related to unknowns from the first and last grid ROW
-        for j in [0, N]:
-            for i in range(0, Ni):
-                index = I(i, j, N)
-                A[index, index] = 1
+    return A
 
-        # Add boundary values related to unknowns from the first and last grid COLUMN
-        for i in [0, N]:
-            for j in range(0, Ni):
-                index = I(i, j, N)
-                A[index, index] = 1
 
-    return A, x, y
+def BC_square_neumann(A, N, bvp):
+    # x = 1 is okay, east okay
+    for j in range(0, N + 1):
+        index = bvp.I(N, j, N)
+        A[index, index] = 1
+
+    h = 1 / N
+    muhh = - bvp.mu / (h * h)
+    h2 = 1 / (2 * h)
+    N2 = (N + 1) * (N + 1)
+    x, y = np.ogrid[bvp.a:bvp.b:(N + 1) * 1j, bvp.a:bvp.b:(N + 1) * 1j]
+
+    # y = 0
+    for i in range(0, N + 1):
+        index = bvp.I(i, 0, N)
+        v1, v2 = bvp.V(x[i, 0], y[0, 0])
+        A[index, index] = - 4 * muhh  # U_ij, U_p
+        # test for out of bounds
+        if index - N - 1 >= 0:
+            A[index, index - N - 1] = muhh - v2 * h2  # U_{i,j-1}, U_s
+        if index + N + 1 <= N2 - 1:
+            A[index, index + N + 1] = muhh + v2 * h2  # U_{i,j+1}, U_n
+        if index + 1 <= N + 1:
+            A[index, index + 1] = 2 * muhh + v1 * h2  # U_{i+1,j}, U_e
+
+    # y = 1
+    for i in range(0, N + 1):
+        index = bvp.I(i, N, N)
+        v1, v2 = bvp.V(x[i, 0], y[0, N])
+        A[index, index] = - 4 * muhh  # U_ij, U_p
+        # test for out of bounds
+        if index - N - 1 >= 0:
+            A[index, index - N - 1] = muhh - v2 * h2  # U_{i,j-1}, U_s
+        if index - 1 >= 0:
+            A[index, index - 1] = 2 * muhh - v1 * h2  # U_{i-1,j}, U_w
+        if index + N + 1 <= N2 - 1:
+            A[index, index + N + 1] = muhh + v2 * h2  # U_{i,j+1}, U_n
+
+    # x = 0
+    for j in range(0, N + 1):
+        index = bvp.I(0, j, N)
+        v1, v2 = bvp.V(x[N, 0], y[0, j])
+        A[index, index] = - 4 * muhh  # U_ij, U_p
+        # test for out of bounds
+        if index - 1 >= bvp.I(0, j, N):
+            A[index, index - 1] = muhh - v1 * h2  # U_{i-1,j}, U_w
+        if index + N + 1 <= N2 - 1:
+            A[index, index + N + 1] = 2 * muhh + v2 * h2  # U_{i,j+1}, U_n
+        if index + 1 <= bvp.I(N, j, N):
+            A[index, index + 1] = muhh + v1 * h2  # U_{i+1,j}, U_e
+
+
+    # spesial (0,0)
+    index = bvp.I(0, 0, N)
+    v1, v2 = bvp.V(x[0, 0], y[0, 0])
+    A[index, index] = - 4 * muhh
+    A[index, index + 1] = 2 * muhh + v1 * h2
+    A[index, index + N + 1] = 2 * muhh + v2 * h2
+    return A
+
+
+def apply_bcs_square(F, G, N, bvp):
+    # Add boundary values related to unknowns from the first and last grid ROW
+    bc_indices = np.array([bvp.I(i, j, N) for j in [0, N] for i in range(0, N + 1)])
+    F[bc_indices] = G[bc_indices]
+
+    # Add boundary values related to unknowns from the first and last grid COLUMN
+    bc_indices = np.array([bvp.I(i, j, N) for i in [0, N] for j in range(0, N + 1)])
+    F[bc_indices] = G[bc_indices]
+    return F
+
+
+def apply_bsc_circle_quadrant(F, G, N, bvp):
+    # Add boundary values for the square first
+    F = apply_bcs_square(F, G, N, bvp)
+    # Make the grid
+    x, y = np.ogrid[bvp.a:bvp.b:(N + 1) * 1j, bvp.a:bvp.b:(N + 1) * 1j]
+    for i in range(1, N):
+        for j in range(1, N):
+            if x[i, 0] ** 2 + y[0, j] ** 2 >= bvp.c:
+                index = bvp.I(i, j, N)
+                F[index] = G[index]
+
+    return F
+
+
+
+def G_square(x, y, bvp, N):
+    G = np.zeros((N+1, N+1))
+    G[:, 0] = bvp.gs(x).ravel()
+    G[:, -1] = bvp.gn(x).ravel()
+    G[0, :] = bvp.gw(y).ravel()
+    G[-1, :] = bvp.ge(y).ravel()
+    return G
+
+
+def G_circle_quadrant(x, y, bvp, N):
+    # ge and gn may not exist
+    # gw and gs exist, so do them, first
+    G = sparse.dok_matrix((N + 1, N + 1))
+    for i in range(0, N + 1):
+        for j in range(0, N + 1):
+            if x[i, 0] ** 2 + y[0, j] ** 2 >= bvp.c:
+                G[i, j] = bvp.gc(x[i, 0], y[0, j])
+    G = G.toarray()
+    G[:, 0] = bvp.gs(x).ravel()
+    G[0, :] = bvp.gw(y).ravel()
+
+    return G
+
+
+def G_square_neumann(x, y, bvp, N):
+    h = 1 / N
+    G = np.zeros((N + 1, N + 1))
+    G[:, 0] = bvp.f(x, [[0]]).ravel() - 2 / h * bvp.gs(x).ravel()
+    G[:, -1] = bvp.f(x, [[N]]).ravel() - 2 / h * bvp.gn(x).ravel()
+    G[0, :] = bvp.f([[0]], y).ravel() - 2 / h * bvp.gw(y).ravel()
+    G[-1, :] = bvp.ge(y).ravel()  # west is Dirichlet
+    return G
+
+
+
+
 
 # A class to hold the parameters of the BVP
 # -mu div grad u + V * grad u = f, on (a,b)x(a,b), u = g on Boundary, with Dirichlet boundary conditions
 class BVP(object):
-    def __init__(self, f, V, gs, gn, gw, ge, a=0, b=1, mu=1, uexact=None, I=I, get_Axy=get_Axy_square):
+    def __init__(self, f, V, gs=None, gn=None, gw=None, ge=None, a=0, b=1, mu=1, uexact=None, I=I, BC=BC_square, apply_bcs=apply_bcs_square, G=G_square, c=1, gc=None):
         self.f = f       # Source function
         self.V = V       # function representing the vector
         self.gs = gs     # S boundary condition
@@ -75,44 +186,52 @@ class BVP(object):
         self.mu = mu    # constant mu
         self.uexact = uexact  # The exact solution, if known.
         self.I = I      # index mapping
-        self.get_Axy = get_Axy # function to get matrix A and grid x,y
+        self.BC = BC  # apply boundary condition in matrix
+        self.apply_bcs = apply_bcs  # apply boundary in F
+        self.G = G  # Boundary condition for F.
+        self.c = c # constant for circle quadrant boundary condition, i.e. x^2 + y^2 = c
+        self.gc = gc # Boundary condition for circle quadrant boundary condition, i.e. x^2 + y^2 = c
 
 
+def get_Axy(bvp, N):
+    # N, Number of intervals
+    # Gridsize
+    h = (bvp.b - bvp.a) / N
+    # Total number of unknowns
+    N2 = (N + 1) * (N + 1)
+    # Make the grid
+    x, y = np.ogrid[bvp.a:bvp.b:(N + 1) * 1j, bvp.a:bvp.b:(N + 1) * 1j]
 
-def apply_bcs(F, G, N, I):
-    # Add boundary values related to unknowns from the first and last grid ROW
-    bc_indices = np.array([I(i, j, N) for j in [0, N] for i in range(0, N + 1)])
-    F[bc_indices] = G[bc_indices]
+    # Define zero matrix A of right size and insert 0
+    A = sparse.dok_matrix((N2, N2))
+    # Define FD entries of A
+    muhh = - bvp.mu / (h * h)
+    h2 = 1 / (2 * h)
 
-    # Add boundary values related to unknowns from the first and last grid COLUMN
-    bc_indices = np.array([I(i, j, N) for i in [0, N] for j in range(0, N + 1)])
-    F[bc_indices] = G[bc_indices]
+    for i in range(1, N):
+        for j in range(1, N):
+            index = bvp.I(i, j, N)
+            v1, v2 = bvp.V(x[i, 0], y[0, j])
+            A[index, index] = - 4 * muhh  # U_ij, U_p
+            A[index, index - N - 1] = muhh - v2 * h2  # U_{i,j-1}, U_s
+            A[index, index + N + 1] = muhh + v2 * h2  # U_{i,j+1}, U_n
+            A[index, index - 1] = muhh - v1 * h2  # U_{i-1,j}, U_w
+            A[index, index + 1] = muhh + v1 * h2  # U_{i+1,j}, U_e
 
-    return F
-
-
-def g(x, y, bvp, N):
-    G = np.zeros((N+1, N+1))
-    G[:, 0] = bvp.gs(x).ravel()
-    G[:, -1] = bvp.gn(x).ravel()
-    G[0, :] = bvp.gw(y).ravel()
-    G[-1, :] = bvp.ge(y).ravel()
-    return G
-
+    # Incorporate boundary conditions
+    A = bvp.BC(A, N, bvp)
+    return A, x, y
 
 
-def solve_BVP_and_plot(bvp, N, test, plot=True, neumann=True):
+def solve_BVP_and_plot(bvp, N, test, plot=True):
     # Make grid and matrix
-    A, x, y = bvp.get_Axy(bvp, N)
+    A, x, y = get_Axy(bvp, N)
     F = bvp.f(x, y).ravel()
 
-    if neumann:
-        G = g(x, y, bvp, N).ravel()
-    else:
-        G = np.zeros_like(F)  # placeholder
+    G = bvp.G(x, y, bvp, N).ravel()
 
     # Apply bcs
-    F = apply_bcs(F, G, N, I)
+    F = bvp.apply_bcs(F, G, N, bvp)
 
     # Solve
     A_csr = A.tocsr()
@@ -120,7 +239,6 @@ def solve_BVP_and_plot(bvp, N, test, plot=True, neumann=True):
 
     if plot:
         plot2D(x, y, U, "Numerical solution of " + test)
-
     try:
         U_exact = bvp.uexact(x, y)
         err = np.abs(U - U_exact)
@@ -129,7 +247,6 @@ def solve_BVP_and_plot(bvp, N, test, plot=True, neumann=True):
         if plot:
             plot2D(x, y, U_exact, "Exact solution of " + test)
             plot2D(x, y, err, "Error of " + test)
-
         return err
 
     except:
@@ -143,7 +260,7 @@ def plot2D(X, Y, Z, title=""):
     ax = fig.gca(projection='3d')
     ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=cm.coolwarm)  # Surface-plot
     # Set initial view angle
-    ax.view_init(30, 225)
+    ax.view_init(30, 45)
 
     # Set labels and show figure
     ax.set_xlabel('$x$')
@@ -152,13 +269,12 @@ def plot2D(X, Y, Z, title=""):
     plt.show()
 
 
-def convergence(bvp, P):
+def convergence(bvp, P, N=10):
     # Measure the error for different stepsizes.
     # Require bvp.uexact to be set.
     # Number of different stepsizes
     Hconv = np.zeros(P)  #log(h) = log(1/N) = -log(N)
     Econv = np.zeros(P)
-    N = 10  # The least number of intervals
     for p in range(P):
         Eh = solve_BVP_and_plot(bvp, N, "", plot=False)
         Econv[p] = np.max(np.max(Eh))
@@ -178,7 +294,7 @@ def plot_convergence(H, E, p):
     plt.show()
 
 
-def TEST_0(N, P=4): #As given in exercise
+def TEST_0(N, P=4): #As given in exercise, to see that boundary cond. is implemented rigth
     print("------------------------------------------")
     print("Test 0, N = ", N)
     # Boundary conditions and source functions.
@@ -190,10 +306,9 @@ def TEST_0(N, P=4): #As given in exercise
     uexact = lambda x, y: x ** 3 + 2 * y ** 2
 
     def V(x, y):
-        n = len(x)
-        return np.zeros(n), np.zeros(n)
+        return 0, 0
 
-    test = BVP(f, V, gs, gn, gw, ge, mu=-1, uexact=uexact)
+    test = BVP(f, V,  gs=gs, gn=gn, gw=gw, ge=ge, mu=-1, uexact=uexact)
     solve_BVP_and_plot(test, N, "TEST_0")
     print("------------------------------------------")
     #print("Test convergence for TEST_0")
@@ -215,10 +330,9 @@ def TEST_1(N, P=4):
     uexact = lambda x, y: np.sin(x) * np.sin(y)
 
     def V(x, y):
-        n = len(x)
-        return np.zeros(n), np.zeros(n)
+        return 0, 0
 
-    test = BVP(f, V, gs, gn, gw, ge, uexact=uexact)
+    test = BVP(f, V, gs=gs, gn=gn, gw=gw, ge=ge, uexact=uexact)
     solve_BVP_and_plot(test, N, "TEST_1")
     print("------------------------------------------")
     print("Test convergence for TEST_1")
@@ -239,12 +353,10 @@ def TEST_2(N, P=4):
     f = lambda x, y: 2 * np.sin(x) * np.sin(y) + np.sin(x) * np.cos(y) + np.cos(x) * np.sin(y)
     uexact = lambda x, y: np.sin(x) * np.sin(y)
 
-
     def V(x, y):
-        n = len(x)
-        return np.ones(n), np.ones(n)
+        return 1, 1
 
-    test = BVP(f, V, gs, gn, gw, ge, uexact=uexact)
+    test = BVP(f, V,  gs=gs, gn=gn, gw=gw, ge=ge, uexact=uexact)
     solve_BVP_and_plot(test, N, "TEST_2")
     print("------------------------------------------")
     print("Test convergence for TEST_2")
@@ -254,7 +366,7 @@ def TEST_2(N, P=4):
     print("------------------------------------------")
 
 
-def TEST_3(N, P=4):
+def TEST_3(N, P=4, c1=1, c2=1):
     print("------------------------------------------")
     print("Test 3, N = ", N)
     # Boundary conditions and source functions.
@@ -263,15 +375,13 @@ def TEST_3(N, P=4):
     gw = lambda y: np.zeros_like(y)
     ge = lambda y: np.zeros_like(y)
     f = lambda x, y: 5 * np.pi * np.pi * np.sin(1 * np.pi * x) * np.sin(2 * np.pi * y) \
-                     + np.pi * np.cos(1 * np.pi * x) * np.sin(2 * np.pi * y) + 2 * np.pi * np.sin(1 * np.pi * x) * np.cos(2 * np.pi * y)
+                     + c2 * np.pi * np.cos(1 * np.pi * x) * np.sin(2 * np.pi * y) \
+                     + c1 * 2 * np.pi * np.sin(1 * np.pi * x) * np.cos(2 * np.pi * y)
     uexact = lambda x, y: np.sin(1 * np.pi * x) * np.sin(2 * np.pi * y)
-
-
     def V(x, y):
-        n = len(x)
-        return np.ones(n), np.ones(n)
+        return c1, c2
 
-    test = BVP(f, V, gs, gn, gw, ge, uexact=uexact)
+    test = BVP(f, V, gs=gs, gn=gn, gw=gw, ge=ge, uexact=uexact)
     solve_BVP_and_plot(test, N, "TEST_3")
     print("------------------------------------------")
     print("Test convergence for TEST_3")
@@ -279,6 +389,40 @@ def TEST_3(N, P=4):
     plot_convergence(Hconv, Econv, order)
     print("Convergence order: " + "{:.2f}".format(order))
     print("------------------------------------------")
+
+def TEST_3_1c(N, P=4, c1=1, c2=1):
+    print("------------------------------------------")
+    print("Test 3 1c, N = ", N)
+    # Boundary conditions and source functions.
+    gs = lambda x: 1 - x * x
+    gw = lambda y: 1 - y * y
+    gc = lambda x, y: 0
+    f = lambda x, y: 4 - c1 * 2 * x - c2 * 2 * y
+    def uexact(x, y):
+        n = np.shape(x)[0]
+        uexact = sparse.dok_matrix((n, n))
+        for i in range(0, N + 1):
+            for j in range(0, N + 1):
+                if x[i, 0] ** 2 + y[0, j] ** 2 >= 1:
+                    uexact[i, j] = 0
+                else:
+                    uexact[i, j] = 1 - x[i, 0] ** 2 - y[0, j] ** 2
+
+        return uexact.toarray()
+
+
+    def V(x, y):
+        return c1, c2
+
+    test = BVP(f, V, gs=gs, gw=gw, gc=gc, uexact=uexact, BC=BC_circle_quadrant, apply_bcs=apply_bsc_circle_quadrant, G=G_circle_quadrant)
+    solve_BVP_and_plot(test, N, "TEST_3 1c")
+    print("------------------------------------------")
+    print("Test convergence for TEST_3 1c")
+    Hconv, Econv, order = convergence(test, P=P, N=100)
+    plot_convergence(Hconv, Econv, order)
+    print("Convergence order: " + "{:.2f}".format(order))
+    print("------------------------------------------")
+
 
 
 def Task_1d(N, P=4):
@@ -289,21 +433,42 @@ def Task_1d(N, P=4):
     gn = lambda x: np.zeros_like(x)
     gw = lambda y: np.zeros_like(y)
     ge = lambda y: np.zeros_like(y)
-    f = lambda x, y: np.ones((len(x), len(x)))
+    f = lambda x, y: np.ones((np.shape(x)[0], np.shape(y)[1]))
 
     def V(x, y):
         return y, -x
 
-    test = BVP(f, V, gs, gn, gw, ge, mu=1e-2)
+    test = BVP(f, V,  gs=gs, gn=gn, gw=gw, ge=ge, mu=1e-2)
     solve_BVP_and_plot(test, N, "Task 1d")
+    print("------------------------------------------")
+
+
+def Task_1d_neumann(N, P=4):
+    print("------------------------------------------")
+    print("Task 1d n, N = ", N)
+    # Boundary conditions and source functions.
+    gs = lambda x: np.zeros_like(x)
+    gn = lambda x: np.zeros_like(x)
+    gw = lambda y: np.zeros_like(y)
+    ge = lambda y: np.zeros_like(y)
+    f = lambda x, y: np.ones((np.shape(x)[0], np.shape(y)[1]))
+
+    def V(x, y):
+        return y, -x
+
+    test = BVP(f, V,  gs=gs, gn=gn, gw=gw, ge=ge, mu=1e-2, BC=BC_square_neumann, G=G_square_neumann)
+    solve_BVP_and_plot(test, N, "Task 1d n")
     print("------------------------------------------")
 
 
 
 
-
-TEST_0(4)
-TEST_1(10)
-TEST_2(10)
-TEST_3(10)
+#TEST_0(4)
+#TEST_1(10)
+#TEST_2(10)
+#TEST_3(4, c1=1, c2=-1)
+#TEST_3_1c(100)
+#Task_1d(40)
 Task_1d(100)
+Task_1d_neumann(100)
+
