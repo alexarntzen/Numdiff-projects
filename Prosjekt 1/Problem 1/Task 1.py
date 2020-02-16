@@ -418,26 +418,24 @@ def TEST_3_1c(N, P=4, c1=1, c2=1):
     print("------------------------------------------")
 
 
-def TEST_3_n(N, P=4, c1=1, c2=1):
+def TEST_4_n(N, P=4, c1=1, c2=1):
     print("------------------------------------------")
     print("Test 3 n, N = ", N)
     # Boundary conditions and source functions.
-    gs = lambda x: np.zeros_like(x)
-    gn = lambda x: np.zeros_like(x)
-    gw = lambda y: np.zeros_like(y)
-    ge = lambda y: np.zeros_like(y)  # Dirichlet
-    f = lambda x, y: 8 * np.pi * np.pi * np.sin(1 * np.pi * x) * np.sin(2 * np.pi * y) \
-                     + c2 * 2 * np.pi * np.cos(1 * np.pi * x) * np.sin(2 * np.pi * y) \
-                     + c1 * 2 * np.pi * np.sin(1 * np.pi * x) * np.cos(2 * np.pi * y)
-    uexact = lambda x, y: np.sin(2 * np.pi * x) * np.sin(2 * np.pi * y)
+    gs = lambda x: np.zeros_like(x)  # Neumann, y = 0
+    gn = lambda x: x ** 2 + 1  # Dirichlet, y = 1
+    gw = lambda y: y ** 2  # Dirichlet. x = 0
+    ge = lambda y: 2 * np.ones_like(y)  # Neumann, x = 1
+    f = lambda x, y: - 4 + c1 * 2 * x + c2 * 2 * y
+    uexact = lambda x, y: x ** 2 + y ** 2
     def V(x, y):
         # returns y-komp, x-komp
         return c2, c1
 
     test = BVP(f, V, gs=gs, gn=gn, gw=gw, ge=ge, uexact=uexact, BC=BC_square_neumann, G=G_square_neumann)
-    solve_BVP_and_plot(test, N, "TEST_3 n")
+    solve_BVP_and_plot(test, N, "TEST_4 n")
     print("------------------------------------------")
-    print("Test convergence for TEST_3 n")
+    print("Test convergence for TEST_4 n")
     Hconv, Econv, order = convergence(test, P=P)
     plot_convergence(Hconv, Econv, order)
     print("Convergence order: " + "{:.2f}".format(order))
@@ -488,7 +486,7 @@ def Task_1d_neumann(N, P=4):
 #TEST_2(10)
 #TEST_3(100, c1=1, c2=-1)
 #TEST_3_1c(100)
-TEST_3_n(4)
+#TEST_4_n(40)
 #Task_1d(40)
 #Task_1d(100)
 #Task_1d_neumann(100)
