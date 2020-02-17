@@ -12,21 +12,22 @@ from mpl_toolkits.mplot3d import Axes3D     # For 3-d plot
 from matplotlib import cm
 import BVP_solver as BVP
 
-class nonlinear_poisson_sqare(BVP.sqare,BVP.finite_difference):
+class nonlinear_poisson_sqare(BVP.Cube,BVP.Finite_difference):
     def __init__(self,f,g,N,dim=2,length=1, origin = 0, maxIterNewton = 1000,constantBoundary=1, lam=1.5,guess = None):
-        BVP.sqare.__init__(self,N,dim,length, origin,constantBoundary )
+        BVP.Cube.__init__(self,N,dim,length, origin,constantBoundary )
         self.f = f
         self.g = g
         self.constantBoundary = constantBoundary
         self.lam = lam
         #dirichlet
-        self.A, self.Fb, geom =  self.getLinearizedDirichlet(self.scheme,
+        self.A, self.Fb =  self.getLinearizedBVP(self.scheme,
                                      self.g,
-                                     self.maxIndex,
-                                     self.getIndex,
-                                     self.getCoordinate,
+                                     self.numInternal,
+                                     self.getIndexInternal,
+                                     self.getCoordinateInternal,
                                      self.getPosition,
-                                     self.isBoundarySqare)
+                                     self.isBoundarySqare,
+                                     neumann=False)
 
         if guess == None:
             guess = np.ones(len(self.Fb))
@@ -69,29 +70,29 @@ class nonlinear_poisson_sqare(BVP.sqare,BVP.finite_difference):
             F = A @ u_n - self.h**2*lam/u_n**2 - F_b
 
             error = lin.norm(F,2)
-            print(error)
             iter += 1
 
         u_n = self.applyConstantBoundary(u_n,constantBoundary)
         return u_n,error,iter
 
+    def getMeshGrid(self):
+        return self.getPosition(np.ogrid[0:(self.N+1), 0:(self.N+1)])
 
 
 
 dim = 2
 N = 10
 tol = 10e-10
-maxiter = 10
+maxiter = 20
 lam=25
 #Not used
 def ftest(X,u,ud):
     return 1/u**2
-
 
 #Boundary contitions
 def g(v):
     return 1
 
 test = nonlinear_poisson_sqare(ftest,g,N,dim,lam = lam, maxIterNewton=maxiter)
-#test.plot()
+test.plot()
 test.summary()
