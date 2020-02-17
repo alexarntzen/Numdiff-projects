@@ -47,15 +47,7 @@ class finite_difference:
         U[interiorIndexs] = U_interior
         U[bounderyIndexs] = [g(getVecor(getCoordinate(index))) for index in bounderyIndexs]
         U[exteriorIndexs] = np.nan
-
-
-
-
-    @staticmethod
-    def print_summary(error, iter):
-        print("Local error: ", error)
-        print("The method used", iter, "iterations")
-
+        return U
 
 # Denne kan også brukes i oppgave 1a
 class lattice():
@@ -104,10 +96,10 @@ class lattice():
 
     #Only for 2D
     def plot2D(self, X, Y, U, title=""):
-        Ugird = self.getLattice(U, self.shape)
+        Ugrid = self.getLattice(U, self.shape)
         fig = plt.figure(figsize=(8, 6), dpi=100)
         ax = fig.gca(projection='3d')
-        ax.plot_surface(X, Y, Ugird, rstride=1, cstride=1, cmap=cm.coolwarm)  # Surface-plot
+        ax.plot_surface(X, Y, Ugrid, rstride=1, cstride=1, cmap=cm.coolwarm)  # Surface-plot
         # Set initial view angle
 
         # Set labels and show figure
@@ -122,7 +114,6 @@ class lattice():
         return self.getPosition(np.ogrid[0:(self.N + 1), 0:(self.N + 1)])
 
 
-# Denne kan også brukes i oppgave 1a, cartesian
 class sqare(lattice):
     def __init__(self, N, dim=2, length=1, origin=0, constantBoundary=0):
         lattice.__init__(self, np.full(dim, N), np.full(dim, length), origin)
@@ -140,6 +131,90 @@ class sqare(lattice):
     def applyConstantBoundary(self, internalVector, boundary=1):
         return np.pad(self.getLatticeInternalSqare(internalVector), (1, 1), 'constant', constant_values=boundary).ravel()
 
+# Denne kan også brukes i oppgave 1a, cartesian
+class shape(lattice):
+    def __init__(self, N, isBoundaryFunction, dim=2, length=1, origin=0):
+        lattice.__init__(self, np.full(dim, N), np.full(dim, length), origin)
+        if isBoundaryFunction is None:
+            self.isBoundaryFunction = self.isBoundarySqare
+        else:
+            self.isBoundaryFunction = lambda coordinate : isBoundaryFunction(self.getPosition(coordinate))
+
+    def isBoundarySqare(self, coordinate):
+        if (self.N in coordinate) or (0 in coordinate):
+            return True
+        else:
+            return False
+
+# Cartesian coordinates. Important !
+def defaultScheme(position):
+    return np.array(([0, 1, 0], [1, -4, 1], [0, 1, 0]))
+
+class solve_interface(shape,finite_difference):
+    def __init__(self,f,g,N,isBoundaryFunction,scheme=defaultScheme,dim=2,length=1, origin = 0):
+        shape.__init__(self,N,isBoundaryFunction,dim,length, origin )
+        self.f = f
+        self.g = g
+        self.scheme = scheme
+        #dirichlet
+        self.U = None
+        self.iter = None
+        self.error = None
+        self.A, self.Fb, self.geometry = self.getLinearizedDirichlet(self.scheme,
+                                                                     self.g,
+                                                                     self.maxIndex,
+                                                                     self.getIndex,
+                                                                     self.getCoordinate,
+                                                                     self.getPosition,
+                                                                     self.isBoundaryFunction)
+
+    
+    def getError(self):
+        return self.error
+
+    def getIter(self):
+        return self.iter
+
+    def summary(self):
+        print("Local error: ", self.error)
+        print("The method used", self.iter, "iterations")
+
+    def plot(self,title="Microelectromechanical device"):
+        self.X, self.Y = self.getMeshGrid()
+        self.plot2D(self.X, self.Y, self.U, title)
 
 
 
+
+
+class nonlinear_poisson(solve_interface):
+    def __init__(self,f,g,N,isBoundaryFunction=None,scheme=defaultScheme,dim=2,length=1, origin = 0, maxIterNewton = 1000, lam=1.5,guess = None):
+        solve_interface.__init__(self,f,g,N,isBoundaryFunction,scheme,dim,length,origin)
+        self.lam = lam
+
+        if guess == None:
+            guess = np.ones(len(self.Fb))
+
+        U_internal, self.error, self.iter = self.solveNonlinear2(A=self.A, u_n=guess, F_b=self.Fb, maxiter=maxIterNewton, lam=self.lam)
+        self.U = finite_difference.applyBoundary(U_internal, self.g, self.geometry,self.getCoordinate, self.getPosition)
+
+    # Ikke generell
+    def solveNonlinear2(self, A, u_n, F_b, lam=1.5, tol=10e-10, maxiter=100):
+        du = np.copy(u_n)
+        error = 1
+        iter = 0
+        F = A @ u_n - self.h ** 2 * lam / u_n ** 2 - F_b
+
+        while iter < maxiter and error > tol:
+            jacobian = A + np.diag(lam / u_n) * self.h ** 2
+
+            du = splin.lgmres(jacobian, -F, du)[0]
+
+            u_n += du
+
+            F = A @ u_n - self.h ** 2 * lam / u_n ** 2 - F_b
+
+            error = lin.norm(F, 2)
+            iter += 1
+
+        return u_n, error, iter
