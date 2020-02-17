@@ -383,6 +383,7 @@ def plot2D(X, Y, Z, title="", view=225):
     # Set labels and show figure
     ax.set_xlabel('$y$')
     ax.set_ylabel('$x$')
+    ax.set_zlabel('$u(x,y)$')
     ax.set_title(title)
 
 
