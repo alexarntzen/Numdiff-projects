@@ -167,7 +167,6 @@ class solve_interface(shape,finite_difference):
                                                                      self.getCoordinate,
                                                                      self.getPosition,
                                                                      self.isBoundaryFunction)
-
     
     def getError(self):
         return self.error
@@ -184,14 +183,10 @@ class solve_interface(shape,finite_difference):
         self.plot2D(self.X, self.Y, self.U, title)
 
 
-
-
-
 class nonlinear_poisson(solve_interface):
     def __init__(self,f,g,N,isBoundaryFunction=None,scheme=defaultScheme,dim=2,length=1, origin = 0, maxIterNewton = 1000, lam=1.5,guess = None):
         solve_interface.__init__(self,f,g,N,isBoundaryFunction,scheme,dim,length,origin)
         self.lam = lam
-
         if guess == None:
             guess = np.ones(len(self.Fb))
 
