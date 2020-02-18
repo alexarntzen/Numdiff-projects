@@ -14,28 +14,28 @@ from matplotlib import cm
 
 class finite_difference:
     @staticmethod
-    def getLinearizedDirichlet(scheme, g, maxIndex, getIndex, getCoordinate, getVecor, isBoundary, schemeCenter=1):
+    def getLinearizedDirichlet(scheme,f, g, maxIndex, getIndex, getCoordinate, getVecor, isBoundary, schemeCenter=1):
         A = sparse.lil_matrix((maxIndex, maxIndex), dtype=np.float64)
         boundaryF = np.zeros(maxIndex)
+        interiorF = np.zeros(maxIndex)
         geometry = np.full((3,maxIndex),False,dtype=bool)
         for index in range(maxIndex):
             coordinate = getCoordinate(index)
             if not isBoundary(coordinate):
                 geometry[0][index] = True
-                print("vikti", index)
                 # Scheme must return array  in same coordinate order as coordinates
+                interiorF[index] = f(getVecor(coordinate))
                 for arrayCoordinate, coeff in np.ndenumerate(scheme(getVecor(np.copy(coordinate)))):
                     #Could have used isomorphism property here
                     schemeCoordinate = coordinate + arrayCoordinate - schemeCenter
                     schemeIndex = getIndex(schemeCoordinate)
-                    print(schemeIndex)
                     if isBoundary(schemeCoordinate):
                         boundaryF[index] += - coeff * g(getVecor(np.copy(coordinate)))
                         geometry[1][schemeIndex] = True
                     elif coeff != 0:
                         A[index, schemeIndex] = coeff
         np.logical_and(np.logical_not(geometry[0]),np.logical_not(geometry[1]),geometry[2])
-        return sparse.csr_matrix(A[geometry[0]])[:,geometry[0]], boundaryF[geometry[0]], geometry
+        return sparse.csr_matrix(A[geometry[0]])[:,geometry[0]],interiorF[geometry[0]], boundaryF[geometry[0]], geometry
 
     @staticmethod
     def applyBoundary(U_interior, g, geometry,getCoordinate, getVecor):
@@ -158,31 +158,31 @@ class solve_interface(shape,finite_difference):
         self.scheme = scheme
         #dirichlet
         self.U = None
-        self.iter = None
-        self.error = None
-        self.A, self.Fb, self.geometry = self.getLinearizedDirichlet(self.scheme,
-                                                                     self.g,
-                                                                     self.maxIndex,
-                                                                     self.getIndex,
-                                                                     self.getCoordinate,
-                                                                     self.getPosition,
-                                                                     self.isBoundaryFunction)
+        self.A, self.Fb, self.Fi, self.geometry = self.getLinearizedDirichlet(self.scheme,
+                                                                             self.f,
+                                                                             self.g,
+                                                                             self.maxIndex,
+                                                                             self.getIndex,
+                                                                             self.getCoordinate,
+                                                                             self.getPosition,
+                                                                             self.isBoundaryFunction)
     
-    def getError(self):
-        return self.error
 
-    def getIter(self):
-        return self.iter
-
-    def summary(self):
-        print("Local error: ", self.error)
-        print("The method used", self.iter, "iterations")
 
     def plot(self,title="Microelectromechanical device"):
         self.X, self.Y = self.getMeshGrid()
         self.plot2D(self.X, self.Y, self.U, title)
 
 
+class linear_elliptic(solve_interface):
+    def __init__(self,f,g,N,isBoundaryFunction=None,scheme=defaultScheme,dim=2,length=1, origin = 0):
+        solve_interface.__init__(self,f,g,N,isBoundaryFunction,scheme,dim,length,origin)
+        U_internal = splin.spsolve(self.A, self.Fi*self.h**2 + self.Fb)
+        print(U_internal)
+        self.U = finite_difference.applyBoundary(U_internal, self.g, self.geometry,self.getCoordinate, self.getPosition)
+
+
+#F is not used because
 class nonlinear_poisson(solve_interface):
     def __init__(self,f,g,N,isBoundaryFunction=None,scheme=defaultScheme,dim=2,length=1, origin = 0, maxIterNewton = 1000, lam=1.5,guess = None):
         solve_interface.__init__(self,f,g,N,isBoundaryFunction,scheme,dim,length,origin)
@@ -209,7 +209,17 @@ class nonlinear_poisson(solve_interface):
 
             F = A @ u_n - self.h ** 2 * lam / u_n ** 2 - F_b
 
-            error = lin.norm(F, 2)
+            error = np.nanmax(np.abs(F))
             iter += 1
 
         return u_n, error, iter
+
+    def getError(self):
+        return self.error
+
+    def getIter(self):
+        return self.iter
+
+    def summary(self):
+        print("Error estimate: ", self.error)
+        print("The method used", self.iter, "iterations")
