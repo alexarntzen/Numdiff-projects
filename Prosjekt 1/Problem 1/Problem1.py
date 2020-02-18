@@ -131,10 +131,11 @@ def BC_circle_quadrant(A, N, bvp):
             if (xp + h) ** 2 + yp ** 2 >= bvp.c:
                 index = bvp.I(i, j, N)
                 v1, v2 = bvp.V(xp, yp)
-                rho = (np.sqrt(1 - yp ** 2) - xp) / h
+                rho = (np.sqrt(bvp.c - yp ** 2) - xp) / h
+                print(rho)
                 A[index, index] += - muhh / rho + v2 * h1  # U_ij, U_p
                 A[index, index - N - 1] += 0   # U_{i,j-1}, U_s
-                A[index, index + N + 1] += 0 # U_{i,j+1}, U_n
+                A[index, index + N + 1] += 0  # U_{i,j+1}, U_n
                 A[index, index - 1] += - muhh / rho + muhh / (rho * (1 + rho))  # U_{i-1,j}, U_w
                 A[index, index + 1] += muhh / (rho * (1 + rho)) - v2 * h1   # U_{i+1,j}, U_e
 
@@ -146,10 +147,10 @@ def BC_circle_quadrant(A, N, bvp):
             if (yp + h) ** 2 + xp ** 2 >= bvp.c:
                 index = bvp.I(i, j, N)
                 v1, v2 = bvp.V(xp, yp)
-                rho = (np.sqrt(1 - xp ** 2) - yp) / h
-                A[index, index] += - muhh / rho + v1 * h1  # U_ij, U_p
-                A[index, index - N - 1] += - muhh / rho + muhh / (rho * (1 + rho))  # U_{i,j-1}, U_s
-                A[index, index + N + 1] += muhh / (rho * (1 + rho)) - v1 * h1    # U_{i,j+1}, U_n
+                eta = (np.sqrt(bvp.c - xp ** 2) - yp) / h
+                A[index, index] += - muhh / eta + v1 * h1  # U_ij, U_p
+                A[index, index - N - 1] += - muhh / eta + muhh / (eta * (1 + eta))  # U_{i,j-1}, U_s
+                A[index, index + N + 1] += muhh / (eta * (1 + eta)) - v1 * h1    # U_{i,j+1}, U_n
                 A[index, index - 1] += 0  # U_{i-1,j}, U_w
                 A[index, index + 1] += 0     # U_{i+1,j}, U_e
 
@@ -161,7 +162,7 @@ def BC_circle_quadrant(A, N, bvp):
             if (xp + h) ** 2 + yp ** 2 >= bvp.c:
                 index = bvp.I(i, j, N)
                 v1, v2 = bvp.V(xp, yp)
-                rho = (np.sqrt(1 - yp ** 2) - xp) / h
+                rho = (np.sqrt(bvp.c - yp ** 2) - xp) / h
                 if A[index, index] == - muhh / rho + v2 * h1:
                     A[index, index] += - 2 * muhh
                 if A[index, index - 1] == 0:
@@ -177,15 +178,15 @@ def BC_circle_quadrant(A, N, bvp):
             if (yp + h) ** 2 + xp ** 2 >= bvp.c:
                 index = bvp.I(i, j, N)
                 v1, v2 = bvp.V(xp, yp)
-                rho = (np.sqrt(1 - xp ** 2) - yp) / h
-                if A[index, index] == - muhh / rho + v1 * h1:
+                eta = (np.sqrt(bvp.c - xp ** 2) - yp) / h
+                if A[index, index] == - muhh / eta + v1 * h1:
                     A[index, index] += - 2 * muhh
                 if A[index, index - N - 1] == 0:
                     A[index, index - N - 1] += muhh - v2 * h2   # U_{i,j-1}, U_s
                 if A[index, index + N + 1] == 0:
                     A[index, index + N + 1] += muhh + v2 * h2  # U_{i,j+1}, U_n
 
-
+    # Boundary condition
     for i in range(1, N):
         for j in range(1, N):
             if x[0, i] ** 2 + y[j, 0] ** 2 >= bvp.c:
@@ -414,7 +415,31 @@ def TEST_3(N, P=4, c1=1, c2=1):
     print("Convergence order: " + "{:.2f}".format(order))
     print("------------------------------------------")
 
-def TEST_3_1c(N, P=4, c1=1, c2=1):
+def TEST_4(N, P=4):
+    print("------------------------------------------")
+    print("Test 3, N = ", N)
+    # Boundary conditions and source functions.
+    gs = lambda x: np.zeros_like(x)
+    gn = lambda x: np.zeros_like(x)
+    gw = lambda y: np.zeros_like(y)
+    ge = lambda y: np.zeros_like(y)
+    f = lambda x, y: 5 * np.pi * np.pi * np.sin(1 * np.pi * x) * np.sin(2 * np.pi * y) \
+                     + y * np.pi * np.cos(1 * np.pi * x) * np.sin(2 * np.pi * y) \
+                     - x * 2 * np.pi * np.sin(1 * np.pi * x) * np.cos(2 * np.pi * y)
+    uexact = lambda x, y: np.sin(1 * np.pi * x) * np.sin(2 * np.pi * y)
+    def V(x, y):
+        return y, -x
+
+    test = BVP(f, V, gs=gs, gn=gn, gw=gw, ge=ge, uexact=uexact)
+    solve_BVP_and_plot(test, N, "TEST_4")
+    print("------------------------------------------")
+    print("Test convergence for TEST_4")
+    Hconv, Econv, order = convergence(test, P=P)
+    plot_convergence(Hconv, Econv, order)
+    print("Convergence order: " + "{:.2f}".format(order))
+    print("------------------------------------------")
+
+def TEST_1c(N, P=4, c1=1, c2=1):
     print("------------------------------------------")
     print("Test 3 1c, N = ", N)
     # Boundary conditions and source functions.
@@ -490,7 +515,8 @@ def Task_1d_long_step(N, P=4):
 #TEST_1(10)
 #TEST_2(10)
 #TEST_3(100, c1=1, c2=-1)
-#TEST_3_1c(10)
+TEST_4(100)
+#TEST_1c(50)
 #Task_1d(100)
 #Task_1d_long_step(30)
 
