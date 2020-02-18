@@ -27,5 +27,5 @@ def g(x):
     return 2
 
 membrane = BVP.nonlinear_poisson(f, g, N, maxIterNewton = maxiter, lam = lam, dim = dim )
-membrane.plot()
+membrane.plot("Microelectromechanical device")
 membrane.summary()

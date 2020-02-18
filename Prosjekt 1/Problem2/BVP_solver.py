@@ -151,11 +151,14 @@ def defaultScheme(position):
     return np.array(([0, 1, 0], [1, -4, 1], [0, 1, 0]))
 
 class solve_interface(shape,finite_difference):
-    def __init__(self,f,g,N,isBoundaryFunction,scheme=defaultScheme,dim=2,length=1, origin = 0):
+    def __init__(self,f,g,N,isBoundaryFunction,scheme=None,dim=2,length=1, origin = 0):
         shape.__init__(self,N,isBoundaryFunction,dim,length, origin )
         self.f = f
         self.g = g
-        self.scheme = scheme
+        if scheme is None:
+            self.scheme = defaultScheme
+        else:
+            self.scheme  = lambda position : scheme(position,self.h)
         #dirichlet
         self.U = None
         self.A, self.Fb, self.Fi, self.geometry = self.getLinearizedDirichlet(self.scheme,
@@ -169,7 +172,7 @@ class solve_interface(shape,finite_difference):
     
 
 
-    def plot(self,title="Microelectromechanical device"):
+    def plot(self,title=""):
         self.X, self.Y = self.getMeshGrid()
         self.plot2D(self.X, self.Y, self.U, title)
 
@@ -177,7 +180,7 @@ class solve_interface(shape,finite_difference):
 class linear_elliptic(solve_interface):
     def __init__(self,f,g,N,isBoundaryFunction=None,scheme=defaultScheme,dim=2,length=1, origin = 0):
         solve_interface.__init__(self,f,g,N,isBoundaryFunction,scheme,dim,length,origin)
-        U_internal = splin.spsolve(self.A, self.Fi*self.h**2 + self.Fb)
+        U_internal = splin.spsolve(self.A, self.Fi + self.Fb)
         self.U = finite_difference.applyBoundary(U_internal, self.g, self.geometry,self.getCoordinate, self.getPosition)
 
 
