@@ -43,7 +43,17 @@ def get_Axy(bvp, N):
             A[index, index + 1] = muhh + v1 * h2  # U_{i+1,j}, U_e
 
     # Incorporate boundary conditions
-    A = bvp.BC(A, N, bvp)
+    # Add boundary values related to unknowns from the first and last grid ROW
+    for j in [0, N]:
+        for i in range(0, N + 1):
+            index = bvp.I(i, j, N)
+            A[index, index] = 1
+
+    # Add boundary values related to unknowns from the first and last grid COLUMN
+    for i in [0, N]:
+        for j in range(0, N + 1):
+            index = bvp.I(i, j, N)
+            A[index, index] = 1
     return A, x, y
 
 
@@ -72,13 +82,6 @@ def get_Axy_square_longer_step_1d(bvp, N):
             A[index, index + 1] = muhh  # U_{i+1,j}, U_e
 
     # Incorporate boundary conditions
-    A = bvp.BC(A, N, bvp)
-    return A, x, y
-
-
-
-
-def BC_square(A, N, bvp):
     # Add boundary values related to unknowns from the first and last grid ROW
     for j in [0, N]:
         for i in range(0, N + 1):
@@ -91,12 +94,12 @@ def BC_square(A, N, bvp):
             index = bvp.I(i, j, N)
             A[index, index] = 1
 
-    return A
+    return A, x, y
 
 
-def BC_circle_quadrant(A, N, bvp):
-    # Add boundary values for the square first
-    A = BC_square(A, N, bvp)
+
+
+def get_Axy_circle_quadrant(bvp, N):
     # N, Number of intervals
     # Gridsize
     h = (bvp.b - bvp.a) / N
@@ -104,25 +107,12 @@ def BC_circle_quadrant(A, N, bvp):
     N2 = (N + 1) * (N + 1)
     # Make the grid
     y, x = np.ogrid[bvp.a:bvp.b:(N + 1) * 1j, bvp.a:bvp.b:(N + 1) * 1j]
-
+    # Define zero matrix A of right size and insert 0
+    A = sparse.dok_matrix((N2, N2))
     # Define FD entries of A
     muhh = - bvp.mu / (h * h)
     h1 = 1 / h
     h2 = 1 / (2 * h)
-    epsilon = 1e-15
-
-    for i in range(1, N):
-        for j in range(1, N):
-            # clean up, set everything to zero
-            if x[0, i] ** 2 + y[j, 0] ** 2 >= bvp.c:
-                index = bvp.I(i, j, N)
-                v1, v2 = bvp.V(x[0, i], y[j, 0])
-                A[index, index] = 0  # U_ij
-                # clean up
-                A[index, index - N - 1] = 0  # U_{i,j-1}, U_s
-                A[index, index + N + 1] = 0  # U_{i,j+1}, U_n
-                A[index, index - 1] = 0  # U_{i-1,j}, U_w
-                A[index, index + 1] = 0  # U_{i+1,j}, U_e
 
     P = sparse.dok_matrix((N+1, N+1))
     for i in range(1, N):
@@ -143,6 +133,12 @@ def BC_circle_quadrant(A, N, bvp):
             xp = x[0, i]
             yp = y[j, 0]
             v1, v2 = bvp.V(xp, yp)
+            if P[i, j] == 0:
+                A[index, index] = - 4 * muhh  # U_ij, U_p
+                A[index, index - N - 1] = muhh - v2 * h2  # U_{i,j-1}, U_s
+                A[index, index + N + 1] = muhh + v2 * h2  # U_{i,j+1}, U_n
+                A[index, index - 1] = muhh - v1 * h2  # U_{i-1,j}, U_w
+                A[index, index + 1] = muhh + v1 * h2  # U_{i+1,j}, U_e
             if P[i, j] == 1:
                 rho = (np.sqrt(bvp.c - yp ** 2) - xp) / h
                 A[index, index] = - 2 * muhh - 2 * muhh / rho \
@@ -226,7 +222,7 @@ def BC_circle_quadrant(A, N, bvp):
                 A[index, index + N + 1] += 2 * muhh / (eta * (eta + 1)) \
                                            + ( h1 / (eta * (eta + 1))) * v2  # U_{i,j+1}, U_n
 """
-    # Boundary condition
+    # Boundary condition of circle quadrant
     for i in range(1, N):
         for j in range(1, N):
             if x[0, i] ** 2 + y[j, 0] ** 2 >= bvp.c:
@@ -238,7 +234,19 @@ def BC_circle_quadrant(A, N, bvp):
                 A[index, index - 1] = 0  # U_{i-1,j}, U_w
                 A[index, index + 1] = 0  # U_{i+1,j}, U_e
 
-    return A
+    # Add boundary values for the square
+    # Add boundary values related to unknowns from the first and last grid ROW
+    for j in [0, N]:
+        for i in range(0, N + 1):
+            index = bvp.I(i, j, N)
+            A[index, index] = 1
+
+    # Add boundary values related to unknowns from the first and last grid COLUMN
+    for i in [0, N]:
+        for j in range(0, N + 1):
+            index = bvp.I(i, j, N)
+            A[index, index] = 1
+    return A, x, y
 
 
 def apply_bcs_square(F, G, N, bvp):
@@ -295,7 +303,7 @@ def G_circle_quadrant(x, y, bvp, N):
 # -mu div grad u + V * grad u = f, on (a,b)x(a,b), u = g on Boundary, with Dirichlet boundary conditions
 class BVP(object):
     def __init__(self, f, V, gs=None, gn=None, gw=None, ge=None, a=0, b=1, mu=1, uexact=None, I=I, get_Axy=get_Axy,
-                 BC=BC_square, apply_bcs=apply_bcs_square, G=G_square, c=1, gc=None):
+                 apply_bcs=apply_bcs_square, G=G_square, c=1, gc=None):
         self.f = f       # Source function
         self.V = V       # function representing the vector
         self.gs = gs     # S boundary condition
@@ -308,7 +316,6 @@ class BVP(object):
         self.uexact = uexact  # The exact solution, if known.
         self.I = I      # index mapping
         self.get_Axy = get_Axy  # Get matrix A and x, y
-        self.BC = BC  # apply boundary condition in matrix
         self.apply_bcs = apply_bcs  # apply boundary in F
         self.G = G  # Boundary condition for F.
         self.c = c # constant for circle quadrant boundary condition, i.e. x^2 + y^2 = c
@@ -317,7 +324,7 @@ class BVP(object):
 
 def solve_BVP_and_plot(bvp, N, test, plot=True, view=225):
     # Make grid and matrix
-    A, x, y = get_Axy(bvp, N)
+    A, x, y = bvp.get_Axy(bvp, N)
     F = bvp.f(x, y).ravel()
     G = bvp.G(x, y, bvp, N).ravel()
     # Apply bcs
@@ -501,7 +508,7 @@ def TEST_1c(N, P=4, c1=1, c2=1):
     def V(x, y):
         return c1, c2
 
-    test = BVP(f, V, gs=gs, gw=gw, gc=gc, uexact=uexact, BC=BC_circle_quadrant, apply_bcs=apply_bsc_circle_quadrant, G=G_circle_quadrant)
+    test = BVP(f, V, gs=gs, gw=gw, gc=gc, uexact=uexact, get_Axy=get_Axy_circle_quadrant, apply_bcs=apply_bsc_circle_quadrant, G=G_circle_quadrant)
     solve_BVP_and_plot(test, N, "TEST_3 1c", view=45)
     print("------------------------------------------")
     print("Test convergence for TEST_3 1c")
