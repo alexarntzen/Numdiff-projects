@@ -24,7 +24,7 @@ def get_Axy(bvp, N):
     # Total number of unknowns
     N2 = (N + 1) * (N + 1)
     # Make the grid
-    x, y = np.ogrid[bvp.a:bvp.b:(N + 1) * 1j, bvp.a:bvp.b:(N + 1) * 1j]
+    y, x = np.ogrid[bvp.a:bvp.b:(N + 1) * 1j, bvp.a:bvp.b:(N + 1) * 1j]
 
     # Define zero matrix A of right size and insert 0
     A = sparse.dok_matrix((N2, N2))
@@ -35,7 +35,7 @@ def get_Axy(bvp, N):
     for i in range(1, N):
         for j in range(1, N):
             index = bvp.I(i, j, N)
-            v1, v2 = bvp.V(x[i, 0], y[0, j])
+            v1, v2 = bvp.V(x[0, i], y[j, 0])
             A[index, index] = - 4 * muhh  # U_ij, U_p
             A[index, index - N - 1] = muhh - v2 * h2  # U_{i,j-1}, U_s
             A[index, index + N + 1] = muhh + v2 * h2  # U_{i,j+1}, U_n
@@ -54,7 +54,7 @@ def get_Axy_square_longer_step_1d(bvp, N):
     # Total number of unknowns
     N2 = (N + 1) * (N + 1)
     # Make the grid
-    x, y = np.ogrid[bvp.a:bvp.b:(N + 1) * 1j, bvp.a:bvp.b:(N + 1) * 1j]
+    y, x = np.ogrid[bvp.a:bvp.b:(N + 1) * 1j, bvp.a:bvp.b:(N + 1) * 1j]
 
     # Define zero matrix A of right size and insert 0
     A = sparse.dok_matrix((N2, N2))
@@ -64,7 +64,7 @@ def get_Axy_square_longer_step_1d(bvp, N):
     for i in range(1, N):
         for j in range(1, N):
             index = bvp.I(i, j, N)
-            v1, v2 = bvp.V(x[i, 0], y[0, j])
+            v1, v2 = bvp.V(x[0, i], y[j, 0])
             A[index, index] = - 4 * muhh - v2 / h + v1 / h  # U_ij, U_p
             A[index, index - N - 1] = muhh   # U_{i,j-1}, U_s
             A[index, index + N + 1] = muhh + v2 / h  # U_{i,j+1}, U_n
@@ -103,7 +103,7 @@ def BC_circle_quadrant(A, N, bvp):
     # Total number of unknowns
     N2 = (N + 1) * (N + 1)
     # Make the grid
-    x, y = np.ogrid[bvp.a:bvp.b:(N + 1) * 1j, bvp.a:bvp.b:(N + 1) * 1j]
+    y, x = np.ogrid[bvp.a:bvp.b:(N + 1) * 1j, bvp.a:bvp.b:(N + 1) * 1j]
 
     # Define FD entries of A
     muhh = - bvp.mu / (h * h)
@@ -113,9 +113,9 @@ def BC_circle_quadrant(A, N, bvp):
     for i in range(1, N):
         for j in range(1, N):
             # clean up, set everything to zero
-            if x[i, 0] ** 2 + y[0, j] ** 2 >= bvp.c:
+            if x[0, i] ** 2 + y[j, 0] ** 2 >= bvp.c:
                 index = bvp.I(i, j, N)
-                v1, v2 = bvp.V(x[i, 0], y[0, j])
+                v1, v2 = bvp.V(x[0, i], y[j, 0])
                 A[index, index] = 0  # U_ij
                 # clean up
                 A[index, index - N - 1] = 0  # U_{i,j-1}, U_s
@@ -123,44 +123,47 @@ def BC_circle_quadrant(A, N, bvp):
                 A[index, index - 1] = 0  # U_{i-1,j}, U_w
                 A[index, index + 1] = 0  # U_{i+1,j}, U_e
 
-    # for x, by p2(x), note x is "y"
+    # for x, by p2(x)
     for i in range(1, N):
         for j in range(1, N):
-            xp = x[i, 0]
-            yp = y[0, j]
+            xp = x[0, i]
+            yp = y[j, 0]
             if (xp + h) ** 2 + yp ** 2 >= bvp.c:
                 index = bvp.I(i, j, N)
                 v1, v2 = bvp.V(xp, yp)
                 rho = (np.sqrt(1 - yp ** 2) - xp) / h
                 A[index, index] += - muhh / rho + v2 * h1  # U_ij, U_p
-                A[index, index - N - 1] += - muhh / rho + muhh / (rho * (1 + rho))   # U_{i,j-1}, U_s
-                A[index, index + N + 1] += muhh / (rho * (1 + rho)) - v2 * h1  # U_{i,j+1}, U_n
-                A[index, index - 1] += 0  # U_{i-1,j}, U_w
-                A[index, index + 1] += 0  # U_{i+1,j}, U_e
+                A[index, index - N - 1] += 0   # U_{i,j-1}, U_s
+                A[index, index + N + 1] += 0 # U_{i,j+1}, U_n
+                A[index, index - 1] += - muhh / rho + muhh / (rho * (1 + rho))  # U_{i-1,j}, U_w
+                A[index, index + 1] += muhh / (rho * (1 + rho)) - v2 * h1   # U_{i+1,j}, U_e
 
-    # for y, by p2(y), note y is "x"
+    # for y, by p2(y)
     for i in range(1, N):
         for j in range(1, N):
-            xp = x[i, 0]
-            yp = y[0, j]
+            xp = x[0, i]
+            yp = y[j, 0]
             if (yp + h) ** 2 + xp ** 2 >= bvp.c:
                 index = bvp.I(i, j, N)
                 v1, v2 = bvp.V(xp, yp)
                 rho = (np.sqrt(1 - xp ** 2) - yp) / h
                 A[index, index] += - muhh / rho + v1 * h1  # U_ij, U_p
-                A[index, index - N - 1] += 0  # U_{i,j-1}, U_s
-                A[index, index + N + 1] += 0  # U_{i,j+1}, U_n
-                A[index, index - 1] += - muhh / rho + muhh / (rho * (1 + rho))  # U_{i-1,j}, U_w
-                A[index, index + 1] += muhh / (rho * (1 + rho)) - v1 * h1       # U_{i+1,j}, U_e
+                A[index, index - N - 1] += - muhh / rho + muhh / (rho * (1 + rho))  # U_{i,j-1}, U_s
+                A[index, index + N + 1] += muhh / (rho * (1 + rho)) - v1 * h1    # U_{i,j+1}, U_n
+                A[index, index - 1] += 0  # U_{i-1,j}, U_w
+                A[index, index + 1] += 0     # U_{i+1,j}, U_e
 
-    # for x, by p2(x), note x is "y"
+    # for x, by p2(x)
     for i in range(1, N):
         for j in range(1, N):
-            xp = x[i, 0]
-            yp = y[0, j]
+            xp = x[0, i]
+            yp = y[j, 0]
             if (xp + h) ** 2 + yp ** 2 >= bvp.c:
                 index = bvp.I(i, j, N)
                 v1, v2 = bvp.V(xp, yp)
+                rho = (np.sqrt(1 - yp ** 2) - xp) / h
+                if A[index, index] == - muhh / rho + v2 * h1:
+                    A[index, index] += - 2 * muhh
                 if A[index, index - 1] == 0:
                     A[index, index - 1] += muhh - v1 * h2  # U_{i-1,j}, U_w
                 if A[index, index + 1] == 0:
@@ -169,11 +172,14 @@ def BC_circle_quadrant(A, N, bvp):
     # for y, by p2(y), note y is "x"
     for i in range(1, N):
         for j in range(1, N):
-            xp = x[i, 0]
-            yp = y[0, j]
+            xp = x[0, i]
+            yp = y[j, 0]
             if (yp + h) ** 2 + xp ** 2 >= bvp.c:
                 index = bvp.I(i, j, N)
                 v1, v2 = bvp.V(xp, yp)
+                rho = (np.sqrt(1 - xp ** 2) - yp) / h
+                if A[index, index] == - muhh / rho + v1 * h1:
+                    A[index, index] += - 2 * muhh
                 if A[index, index - N - 1] == 0:
                     A[index, index - N - 1] += muhh - v2 * h2   # U_{i,j-1}, U_s
                 if A[index, index + N + 1] == 0:
@@ -182,7 +188,7 @@ def BC_circle_quadrant(A, N, bvp):
 
     for i in range(1, N):
         for j in range(1, N):
-            if x[i, 0] ** 2 + y[0, j] ** 2 >= bvp.c:
+            if x[0, i] ** 2 + y[j, 0] ** 2 >= bvp.c:
                 index = bvp.I(i, j, N)
                 A[index, index] = 1  # U_ij
                 # clean up
@@ -200,12 +206,12 @@ def BC_square_neumann(A, N, bvp):
     muhh = - bvp.mu / (h * h)
     h2 = 1 / (2 * h)
     N2 = (N + 1) * (N + 1)
-    x, y = np.ogrid[bvp.a:bvp.b:(N + 1) * 1j, bvp.a:bvp.b:(N + 1) * 1j]
+    y, x = np.ogrid[bvp.a:bvp.b:(N + 1) * 1j, bvp.a:bvp.b:(N + 1) * 1j]
 
     # y = 1, North, Neumann
     for i in range(0, N + 1):
         index = bvp.I(i, N, N)
-        v1, v2 = bvp.V(x[i, 0], y[0, N])
+        v1, v2 = bvp.V(x[0, i], y[N, 0])
         A[index, index] = - 4 * muhh - v1 * h2  # U_ij, U_p
         # test for out of bounds
         if index - 1 >= bvp.I(0, N, N):
@@ -230,7 +236,7 @@ def BC_square_neumann(A, N, bvp):
     # y = 0, south
     for i in range(0, N + 1):
         index = bvp.I(i, 0, N)
-        v1, v2 = bvp.V(x[i, 0], y[0, 0])
+        v1, v2 = bvp.V(x[0, i], y[0, 0])
         A[index, index] = 1  # U_ij, U_p
         # clean up
         if index - 1 >= 0:
@@ -269,10 +275,10 @@ def apply_bsc_circle_quadrant(F, G, N, bvp):
     # Add boundary values for the square first
     F = apply_bcs_square(F, G, N, bvp)
     # Make the grid
-    x, y = np.ogrid[bvp.a:bvp.b:(N + 1) * 1j, bvp.a:bvp.b:(N + 1) * 1j]
+    y, x = np.ogrid[bvp.a:bvp.b:(N + 1) * 1j, bvp.a:bvp.b:(N + 1) * 1j]
     for i in range(1, N):
         for j in range(1, N):
-            if x[i, 0] ** 2 + y[0, j] ** 2 >= bvp.c:
+            if x[0, i] ** 2 + y[j, 0] ** 2 >= bvp.c:
                 index = bvp.I(i, j, N)
                 F[index] = G[index]
 
@@ -295,8 +301,8 @@ def G_circle_quadrant(x, y, bvp, N):
     G = sparse.dok_matrix((N + 1, N + 1))
     for i in range(0, N + 1):
         for j in range(0, N + 1):
-            if x[i, 0] ** 2 + y[0, j] ** 2 >= bvp.c:
-                G[i, j] = bvp.gc(x[i, 0], y[0, j])
+            if x[0, i] ** 2 + y[j, 0] ** 2 >= bvp.c:
+                G[i, j] = bvp.gc(x[0, i], y[j, 0])
     G = G.toarray()
     G[0, :] = bvp.gs(x).ravel()
     G[:, 0] = bvp.gw(y).ravel()
@@ -308,9 +314,8 @@ def G_square_neumann(x, y, bvp, N):
     h = 1 / N
     G = np.zeros((N + 1, N + 1))
     F = bvp.f(x, y)
-    x, y = np.ogrid[bvp.a:bvp.b:(N + 1) * 1j, bvp.a:bvp.b:(N + 1) * 1j]
     # east  neumann
-    v1, v2 = bvp.V(x[:, 0], y[0, N])
+    v1, v2 = bvp.V(x[0, :], y[N, 0])
     G[-1, :] = F[N, :].ravel() + (2 * bvp.mu / h - v2) * bvp.gn(x).ravel()
     # west, north dirichlet
     G[:, -1] = bvp.ge(y).ravel()
@@ -381,8 +386,8 @@ def plot2D(X, Y, Z, title="", view=225):
     ax.view_init(30, view)
     """In plots and code, x and y are iterchanged, meaningig x_plot=y and y_plot=x"""
     # Set labels and show figure
-    ax.set_xlabel('$y$')
-    ax.set_ylabel('$x$')
+    ax.set_xlabel('$x$')
+    ax.set_ylabel('$y$')
     ax.set_zlabel('$u(x,y)$')
     ax.set_title(title)
 
@@ -397,15 +402,14 @@ def convergence(bvp, P, N=10):
         Eh = solve_BVP_and_plot(bvp, N, "", plot=False)
         Econv[p] = np.max(np.max(Eh))
         Hconv[p] = 1 / N
-        N *= 2  # Double the number of intervals (or )
+        N *= 2  # Double the number of intervals
     order = np.polyfit(np.log(Hconv), np.log(Econv), 1)[0]   # Measure the order
     return Hconv, Econv, order
 
 def plot_convergence(H, E, p):
     plt.figure()
     plt.loglog(H, E, 'o-', label='p={:.2f}'.format(p))
-    """vet ikke denne helt"""
-    #plt.loglog(N, (1) ** 2 * 7 / 16 * np.exp(1), '--', label='upper bound')
+    #plt.loglog(H, ..., '--', label='upper bound')
     plt.grid('on')
     plt.xlabel('h')
     plt.ylabel('error')
@@ -492,8 +496,7 @@ def TEST_3(N, P=4, c1=1, c2=1):
                      + c2 * 2 * np.pi * np.sin(1 * np.pi * x) * np.cos(2 * np.pi * y)
     uexact = lambda x, y: np.sin(1 * np.pi * x) * np.sin(2 * np.pi * y)
     def V(x, y):
-        # returns y-komp, x-komp
-        return c2, c1
+        return c1, c2
 
     test = BVP(f, V, gs=gs, gn=gn, gw=gw, ge=ge, uexact=uexact)
     solve_BVP_and_plot(test, N, "TEST_3")
@@ -513,21 +516,19 @@ def TEST_3_1c(N, P=4, c1=1, c2=1):
     gc = lambda x, y: 0
     f = lambda x, y: 4 - c1 * 2 * x - c2 * 2 * y
     def uexact(x, y):
-        n = np.shape(x)[0]
+        n = np.shape(x)[1]
         uexact = sparse.dok_matrix((n, n))
         for i in range(0, n):
             for j in range(0, n):
-                if x[i, 0] ** 2 + y[0, j] ** 2 >= 1:
+                if x[0, i] ** 2 + y[j, 0] ** 2 >= 1:
                     uexact[i, j] = 0
                 else:
-                    uexact[i, j] = 1 - x[i, 0] ** 2 - y[0, j] ** 2
+                    uexact[i, j] = 1 - x[0, i] ** 2 - y[j, 0] ** 2
 
         return uexact.toarray()
 
-
     def V(x, y):
-        # returns y-komp, x-komp
-        return c2, c1
+        return c1, c2
 
     test = BVP(f, V, gs=gs, gw=gw, gc=gc, uexact=uexact, BC=BC_circle_quadrant, apply_bcs=apply_bsc_circle_quadrant, G=G_circle_quadrant)
     solve_BVP_and_plot(test, N, "TEST_3 1c", view=45)
@@ -550,8 +551,7 @@ def TEST_4_n(N, P=4, c1=1, c2=1):
     f = lambda x, y: - 4 + c1 * 2 * x + c2 * 2 * y
     uexact = lambda x, y: x ** 2 + y ** 2
     def V(x, y):
-        # returns y-komp, x-komp
-        return c2, c1
+        return c1, c2
 
     test = BVP(f, V, gs=gs, gn=gn, gw=gw, ge=ge, uexact=uexact, BC=BC_square_neumann, G=G_square_neumann)
     solve_BVP_and_plot(test, N, "TEST_4 n")
@@ -570,11 +570,10 @@ def Task_1d(N, P=4):
     gn = lambda x: np.zeros_like(x)
     gw = lambda y: np.zeros_like(y)
     ge = lambda y: np.zeros_like(y)
-    f = lambda x, y: np.ones((np.shape(x)[0], np.shape(y)[1]))
+    f = lambda x, y: np.ones((np.shape(x)[1], np.shape(y)[0]))
 
     def V(x, y):
-        # returns y-komp, x-komp
-        return -x, y
+        return y, -x
 
     test = BVP(f, V,  gs=gs, gn=gn, gw=gw, ge=ge, mu=1e-2)
     solve_BVP_and_plot(test, N, "Task 1d", view=255)
@@ -589,11 +588,10 @@ def Task_1d_neumann(N, P=4):
     gn = lambda x: np.zeros_like(x)
     gw = lambda y: np.zeros_like(y)
     ge = lambda y: np.zeros_like(y)
-    f = lambda x, y: np.ones((np.shape(x)[0], np.shape(y)[1]))
+    f = lambda x, y: np.ones((np.shape(x)[1], np.shape(y)[0]))
 
     def V(x, y):
-        # returns y-komp, x-komp
-        return -x, y
+        return y, -x
 
     test = BVP(f, V,  gs=gs, gn=gn, gw=gw, ge=ge, mu=1e-2, BC=BC_square_neumann, G=G_square_neumann)
     solve_BVP_and_plot(test, N, "Task 1d n", view=255)
@@ -608,11 +606,10 @@ def Task_1d_long_step(N, P=4):
     gn = lambda x: np.zeros_like(x)
     gw = lambda y: np.zeros_like(y)
     ge = lambda y: np.zeros_like(y)
-    f = lambda x, y: np.ones((np.shape(x)[0], np.shape(y)[1]))
+    f = lambda x, y: np.ones((np.shape(x)[1], np.shape(y)[0]))
 
     def V(x, y):
-        # returns y-komp, x-komp
-        return -x, y
+        return y, -x
 
     test = BVP(f, V,  gs=gs, gn=gn, gw=gw, ge=ge, mu=1e-2, get_Axy=get_Axy_square_longer_step_1d)
     solve_BVP_and_plot(test, N, "Task 1d long step", view=255)
@@ -630,8 +627,8 @@ def Task_1d_long_step(N, P=4):
 #TEST_4_n(20)
 #Task_1d(100)
 #Task_1d_neumann(100)
-Task_1d(30)
-Task_1d_long_step(30)
+#Task_1d(30)
+#Task_1d_long_step(30)
 
 
 
