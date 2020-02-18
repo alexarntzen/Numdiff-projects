@@ -109,6 +109,7 @@ def BC_circle_quadrant(A, N, bvp):
     muhh = - bvp.mu / (h * h)
     h1 = 1 / h
     h2 = 1 / (2 * h)
+    epsilon = 1e-15
 
     for i in range(1, N):
         for j in range(1, N):
@@ -123,69 +124,108 @@ def BC_circle_quadrant(A, N, bvp):
                 A[index, index - 1] = 0  # U_{i-1,j}, U_w
                 A[index, index + 1] = 0  # U_{i+1,j}, U_e
 
-    # for x, by p2(x)
+    P = sparse.dok_matrix((N+1, N+1))
     for i in range(1, N):
         for j in range(1, N):
             xp = x[0, i]
             yp = y[j, 0]
-            if (xp + h) ** 2 + yp ** 2 >= bvp.c:
-                index = bvp.I(i, j, N)
-                v1, v2 = bvp.V(xp, yp)
+            if (xp + h) ** 2 + yp ** 2 >= bvp.c and xp ** 2 + (yp + h) ** 2 < bvp.c:
+                P[i, j] = 1
+            if xp ** 2 + (yp + h) ** 2 >= bvp.c and (xp + h) ** 2 + yp ** 2 < bvp.c:
+                P[i, j] = 2
+            if (xp + h) ** 2 + (yp + h) ** 2 >= bvp.c and \
+                    (xp + h) ** 2 + yp ** 2 < bvp.c and xp ** 2 + (yp + h) ** 2 < bvp.c:
+                P[i, j] = 3
+
+    for i in range(1, N):
+        for j in range(1, N):
+            index = bvp.I(i, j, N)
+            xp = x[0, i]
+            yp = y[j, 0]
+            v1, v2 = bvp.V(xp, yp)
+            if P[i, j] == 1:
                 rho = (np.sqrt(bvp.c - yp ** 2) - xp) / h
-                print(rho)
-                A[index, index] += - muhh / rho + v2 * h1  # U_ij, U_p
-                A[index, index - N - 1] += 0   # U_{i,j-1}, U_s
-                A[index, index + N + 1] += 0  # U_{i,j+1}, U_n
-                A[index, index - 1] += - muhh / rho + muhh / (rho * (1 + rho))  # U_{i-1,j}, U_w
-                A[index, index + 1] += muhh / (rho * (1 + rho)) - v2 * h1   # U_{i+1,j}, U_e
-
-    # for y, by p2(y)
-    for i in range(1, N):
-        for j in range(1, N):
-            xp = x[0, i]
-            yp = y[j, 0]
-            if (yp + h) ** 2 + xp ** 2 >= bvp.c:
-                index = bvp.I(i, j, N)
-                v1, v2 = bvp.V(xp, yp)
+                A[index, index] = - 2 * muhh - 2 * muhh / rho \
+                                  - (2 * xp / (rho * h * h) + h1 / rho - h1) * v1  # U_ij, U_p
+                A[index, index - 1] = 2 * muhh / (1 + rho) \
+                                       + (2 * xp / (h * h * (rho + 1)) - h1 * rho / (rho + 1)) * v1  # U_{i-1,j}, U_w
+                A[index, index + 1] = 2 * muhh / (rho * (rho + 1)) \
+                                       + (2 * xp / (h * h * rho * (rho + 1)) + h1 / (
+                            rho * (rho + 1))) * v1  # U_{i+1,j}, U_e
+                A[index, index - N - 1] = muhh - v2 * h2  # U_{i,j-1}, U_s
+                A[index, index + N + 1] = muhh + v2 * h2  # U_{i,j+1}, U_n
+            if P[i, j] == 2:
                 eta = (np.sqrt(bvp.c - xp ** 2) - yp) / h
-                A[index, index] += - muhh / eta + v1 * h1  # U_ij, U_p
-                A[index, index - N - 1] += - muhh / eta + muhh / (eta * (1 + eta))  # U_{i,j-1}, U_s
-                A[index, index + N + 1] += muhh / (eta * (1 + eta)) - v1 * h1    # U_{i,j+1}, U_n
-                A[index, index - 1] += 0  # U_{i-1,j}, U_w
-                A[index, index + 1] += 0     # U_{i+1,j}, U_e
-
-    # for x, by p2(x)
-    for i in range(1, N):
-        for j in range(1, N):
-            xp = x[0, i]
-            yp = y[j, 0]
-            if (xp + h) ** 2 + yp ** 2 >= bvp.c:
-                index = bvp.I(i, j, N)
-                v1, v2 = bvp.V(xp, yp)
+                A[index, index] += - 2 * muhh - 2 * muhh / eta \
+                                   - (2 * yp / (eta * h * h) + h1 / eta - h1) * v2  # U_ij, U_p
+                A[index, index - N - 1] += 2 * muhh / (1 + eta) \
+                                           + (2 * yp / (h * h * (eta + 1)) - h1 * eta / (
+                            eta + 1)) * v2  # U_{i,j-1}, U_s
+                A[index, index + N + 1] += 2 * muhh / (eta * (eta + 1)) \
+                                           + (2 * yp / (h * h * eta * (eta + 1)) + h1 / (
+                        eta * (eta + 1))) * v2  # U_{i,j+1}, U_n
+                A[index, index - 1] += muhh - v1 * h2  # U_{i-1,j}, U_w
+                A[index, index + 1] += muhh + v1 * h2  # U_{i+1,j}, U_e
+            if P[i, j] == 3:
                 rho = (np.sqrt(bvp.c - yp ** 2) - xp) / h
-                if A[index, index] == - muhh / rho + v2 * h1:
-                    A[index, index] += - 2 * muhh
-                if A[index, index - 1] == 0:
-                    A[index, index - 1] += muhh - v1 * h2  # U_{i-1,j}, U_w
-                if A[index, index + 1] == 0:
-                    A[index, index + 1] += muhh + v1 * h2  # U_{i+1,j}, U_e
-
-    # for y, by p2(y), note y is "x"
-    for i in range(1, N):
+                A[index, index] = - 2 * muhh - 2 * muhh / rho \
+                                  - (2 * xp / (rho * h * h) + h1 / rho - h1) * v1  # U_ij, U_p
+                A[index, index - 1] = 2 * muhh / (1 + rho) \
+                                      + (2 * xp / (h * h * (rho + 1)) - h1 * rho / (rho + 1)) * v1  # U_{i-1,j}, U_w
+                A[index, index + 1] = 2 * muhh / (rho * (rho + 1)) \
+                                      + (2 * xp / (h * h * rho * (rho + 1)) + h1 / (
+                        rho * (rho + 1))) * v1  # U_{i+1,j}, U_e
+                eta = (np.sqrt(bvp.c - xp ** 2) - yp) / h
+                A[index, index] += - 2 * muhh - 2 * muhh / eta \
+                                   - (2 * yp / (eta * h * h) + h1 / eta - h1) * v2  # U_ij, U_p
+                A[index, index - N - 1] += 2 * muhh / (1 + eta) \
+                                           + (2 * yp / (h * h * (eta + 1)) - h1 * eta / (
+                        eta + 1)) * v2  # U_{i,j-1}, U_s
+                A[index, index + N + 1] += 2 * muhh / (eta * (eta + 1)) \
+                                           + (2 * yp / (h * h * eta * (eta + 1)) + h1 / (
+                        eta * (eta + 1))) * v2  # U_{i,j+1}, U_n
+    """    for i in range(1, N):
         for j in range(1, N):
+            index = bvp.I(i, j, N)
             xp = x[0, i]
             yp = y[j, 0]
-            if (yp + h) ** 2 + xp ** 2 >= bvp.c:
-                index = bvp.I(i, j, N)
-                v1, v2 = bvp.V(xp, yp)
+            v1, v2 = bvp.V(xp, yp)
+            if P[i, j] == 1:
+                rho = (np.sqrt(bvp.c - yp ** 2) - xp) / h
+                A[index, index] = - 2 * muhh - 2 * muhh / rho \
+                                  - (h1 / rho - h1) * v1  # U_ij, U_p
+                A[index, index - 1] = 2 * muhh / (1 + rho) \
+                                       + (- h1 * rho / (rho + 1)) * v1  # U_{i-1,j}, U_w
+                A[index, index + 1] = 2 * muhh / (rho * (rho + 1)) \
+                                       + (h1 / (rho * (rho + 1))) * v1  # U_{i+1,j}, U_e
+                A[index, index - N - 1] = muhh - v2 * h2  # U_{i,j-1}, U_s
+                A[index, index + N + 1] = muhh + v2 * h2  # U_{i,j+1}, U_n
+            if P[i, j] == 2:
                 eta = (np.sqrt(bvp.c - xp ** 2) - yp) / h
-                if A[index, index] == - muhh / eta + v1 * h1:
-                    A[index, index] += - 2 * muhh
-                if A[index, index - N - 1] == 0:
-                    A[index, index - N - 1] += muhh - v2 * h2   # U_{i,j-1}, U_s
-                if A[index, index + N + 1] == 0:
-                    A[index, index + N + 1] += muhh + v2 * h2  # U_{i,j+1}, U_n
-
+                A[index, index] += - 2 * muhh - 2 * muhh / eta \
+                                   - (h1 / eta - h1) * v2  # U_ij, U_p
+                A[index, index - N - 1] += 2 * muhh / (1 + eta) \
+                                           + (- h1 * eta / (eta + 1)) * v2  # U_{i,j-1}, U_s
+                A[index, index + N + 1] += 2 * muhh / (eta * (eta + 1)) \
+                                           + ( h1 / (eta * (eta + 1))) * v2  # U_{i,j+1}, U_n
+                A[index, index - 1] += muhh - v1 * h2  # U_{i-1,j}, U_w
+                A[index, index + 1] += muhh + v1 * h2  # U_{i+1,j}, U_e
+            if P[i, j] == 3:
+                rho = (np.sqrt(bvp.c - yp ** 2) - xp) / h
+                A[index, index] = - 2 * muhh - 2 * muhh / rho \
+                                  - (h1 / rho - h1) * v1  # U_ij, U_p
+                A[index, index - 1] = 2 * muhh / (1 + rho) \
+                                      + (- h1 * rho / (rho + 1)) * v1  # U_{i-1,j}, U_w
+                A[index, index + 1] = 2 * muhh / (rho * (rho + 1)) \
+                                      + ( h1 / (rho * (rho + 1))) * v1  # U_{i+1,j}, U_e
+                eta = (np.sqrt(bvp.c - xp ** 2) - yp) / h
+                A[index, index] += - 2 * muhh - 2 * muhh / eta \
+                                   - ( h1 / eta - h1) * v2  # U_ij, U_p
+                A[index, index - N - 1] += 2 * muhh / (1 + eta) \
+                                           + (- h1 * eta / (eta + 1)) * v2  # U_{i,j-1}, U_s
+                A[index, index + N + 1] += 2 * muhh / (eta * (eta + 1)) \
+                                           + ( h1 / (eta * (eta + 1))) * v2  # U_{i,j+1}, U_n
+"""
     # Boundary condition
     for i in range(1, N):
         for j in range(1, N):
@@ -279,7 +319,6 @@ def solve_BVP_and_plot(bvp, N, test, plot=True, view=225):
     # Make grid and matrix
     A, x, y = get_Axy(bvp, N)
     F = bvp.f(x, y).ravel()
-
     G = bvp.G(x, y, bvp, N).ravel()
     # Apply bcs
     F = bvp.apply_bcs(F, G, N, bvp)
@@ -466,7 +505,7 @@ def TEST_1c(N, P=4, c1=1, c2=1):
     solve_BVP_and_plot(test, N, "TEST_3 1c", view=45)
     print("------------------------------------------")
     print("Test convergence for TEST_3 1c")
-    Hconv, Econv, order = convergence(test, P=P, N=10)
+    Hconv, Econv, order = convergence(test, P=P, N=65)
     plot_convergence(Hconv, Econv, order)
     print("Convergence order: " + "{:.2f}".format(order))
     print("------------------------------------------")
@@ -515,9 +554,9 @@ def Task_1d_long_step(N, P=4):
 #TEST_1(10)
 #TEST_2(10)
 #TEST_3(100, c1=1, c2=-1)
-TEST_4(100)
-#TEST_1c(50)
-#Task_1d(100)
+#TEST_4(100)
+TEST_1c(4)
+#Task_1d(50)
 #Task_1d_long_step(30)
 
 
