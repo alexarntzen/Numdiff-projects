@@ -484,16 +484,13 @@ def Task_1d_long_step(N, P=4):
 
 
 
-
-
-
 #TEST_1(10)
 #TEST_2(10)
 #TEST_3(100, c1=1, c2=-1)
 #TEST_3_1c(10)
-#Task_1d(100)
+Task_1d(50)
 #Task_1d_long_step(30)
 
-
+#TEST_3_1c(20)
 
 plt.show()
