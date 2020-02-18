@@ -178,7 +178,6 @@ class linear_elliptic(solve_interface):
     def __init__(self,f,g,N,isBoundaryFunction=None,scheme=defaultScheme,dim=2,length=1, origin = 0):
         solve_interface.__init__(self,f,g,N,isBoundaryFunction,scheme,dim,length,origin)
         U_internal = splin.spsolve(self.A, self.Fi*self.h**2 + self.Fb)
-        print(U_internal)
         self.U = finite_difference.applyBoundary(U_internal, self.g, self.geometry,self.getCoordinate, self.getPosition)
 
 

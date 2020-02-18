@@ -26,5 +26,6 @@ def f(x):
 def g(x):
     return 2
 
-test = BVP.linear_elliptic(f, g, N,isBoundaryFunction =isBoundary )
-test.plot()
+membrane = BVP.nonlinear_poisson(f, g, N, maxIterNewton = maxiter, lam = lam, dim = dim )
+membrane.plot()
+membrane.summary()
