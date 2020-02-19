@@ -23,13 +23,14 @@ def schemeMaker(position,h,constant,V):
     grad  = np.array([[0, -V(position)[0], 0],
                     [-V(position)[1], 0,V(position)[1] ],
                     [0, V(position)[0], 0]])
+
     # x
     # |
     #  y - >
     return -laplacian*constant/h**2 + 1/(2*h)*grad
 
 
-def schemeMakerNeumann(position,h,constant,V):
+def schemeMakerNeumann2(position,h,constant,V):
 
     laplacian = np.array([[0, 1, 0],
                           [0, -2, 0],
@@ -38,11 +39,28 @@ def schemeMakerNeumann(position,h,constant,V):
     grad  = np.array([[0, -V(position)[0], 0],
                     [0, 0, 0 ],
                     [0, V(position)[0], 0]])
+    deriv = np.array([[0, 3/2, 0],
+                    [0, -2, 0 ],
+                    [0, 1/2 , 0]])
     # x
     # |
+    # v
     #  y - >
+    print( 1/(2*h)*grad)
     right = (-2*constant/(h) + V(position)[1])
-    return (-laplacian*constant/h**2 + 1/(2*h)*grad ), right
+    return (-laplacian*constant/h**2 + 1/(2*h)*grad ), 1
+
+#Case3 works better
+def schemeMakerNeumann(position,h,constant,V):
+
+    deriv = np.array([[0, 0, 0,0],
+                    [0, 3/2, -2,1/2 ]])
+    # x
+    # |
+    # v
+    #  y - >
+
+    return deriv/h, 1
 
 
 def isNeumann(position):
@@ -50,7 +68,7 @@ def isNeumann(position):
         return True
 
 dim = 2
-N = 25
+N = 15
 mu = 1e-2
 def f(x):
     return 1

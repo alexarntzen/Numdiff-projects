@@ -33,19 +33,19 @@ class finite_difference:
                         A[schemeIndex,schemeIndex] = 1
                         boundaryF[schemeCoordinate]  = g(getVecor(schemeCoordinate))
                         geometry[1][schemeIndex] = True
+
                     if coeff != 0:
                         A[index, schemeIndex] = coeff
 
             elif isNeumann(getVecor(coordinate)):
-                print(getVecor(coordinate))
                 left, right = schemeNeumann(getVecor(np.copy(coordinate)))
                 for arrayCoordinate, coeff in np.ndenumerate(left):
                     schemeCoordinate = coordinate + arrayCoordinate - schemeCenter
                     schemeIndex = getIndex(schemeCoordinate)
                     if coeff != 0:
-                #        geometry[1][schemeIndex] = True
+                      #  geometry[1][schemeIndex] = True
                         A[index, schemeIndex] = coeff
-                boundaryF[index] = right*g(getVecor(np.copy(coordinate))) + f(getVecor(np.copy(coordinate)))
+                boundaryF[index] = right*g(getVecor(np.copy(coordinate))) + 0* f(getVecor(np.copy(coordinate)))
                 geometry[1][index] = True
 
         np.logical_and(np.logical_not(geometry[0]),np.logical_not(geometry[1]),geometry[2])
