@@ -14,7 +14,7 @@ from matplotlib import cm
 
 class finite_difference:
     @staticmethod
-    def getLinearizedDirichlet(scheme,f, g, maxIndex, getIndex, getCoordinate, getVecor, isBoundary, schemeCenter=1):
+    def getLinearizedDirichlet(scheme,f, g, maxIndex, getIndex, getCoordinate, getVecor, isBoundary,isNeumann,schemeNeumann, schemeCenter=1):
         A = sparse.lil_matrix((maxIndex, maxIndex), dtype=np.float64)
         boundaryF = np.zeros(maxIndex)
         interiorF = np.zeros(maxIndex)
@@ -22,30 +22,43 @@ class finite_difference:
         for index in range(maxIndex):
             coordinate = getCoordinate(index)
             if not isBoundary(coordinate):
-                geometry[0][index] = True
                 # Scheme must return array  in same coordinate order as coordinates
                 interiorF[index] = f(getVecor(coordinate))
+                geometry[0][index] = True
                 for arrayCoordinate, coeff in np.ndenumerate(scheme(getVecor(np.copy(coordinate)))):
                     #Could have used isomorphism property here
                     schemeCoordinate = coordinate + arrayCoordinate - schemeCenter
                     schemeIndex = getIndex(schemeCoordinate)
-                    if isBoundary(schemeCoordinate):
-                        boundaryF[index] += - coeff * g(getVecor(np.copy(schemeCoordinate)))
+                    if isBoundary(schemeCoordinate) and not isNeumann(getVecor(schemeCoordinate)) :
+                        A[schemeIndex,schemeIndex] = 1
+                        boundaryF[schemeCoordinate]  = g(getVecor(schemeCoordinate))
                         geometry[1][schemeIndex] = True
-                    elif coeff != 0:
+
+                    if coeff != 0:
                         A[index, schemeIndex] = coeff
+
+            elif isNeumann(getVecor(coordinate)):
+                left, right = schemeNeumann(getVecor(np.copy(coordinate)))
+                for arrayCoordinate, coeff in np.ndenumerate(left):
+                    schemeCoordinate = coordinate + arrayCoordinate - schemeCenter
+                    schemeIndex = getIndex(schemeCoordinate)
+                    if coeff != 0:
+                      #  geometry[1][schemeIndex] = True
+                        A[index, schemeIndex] = coeff
+                boundaryF[index] = right*g(getVecor(np.copy(coordinate))) + 0* f(getVecor(np.copy(coordinate)))
+                geometry[1][index] = True
+
         np.logical_and(np.logical_not(geometry[0]),np.logical_not(geometry[1]),geometry[2])
-        return sparse.csr_matrix(A[geometry[0]])[:,geometry[0]],interiorF[geometry[0]], boundaryF[geometry[0]], geometry
+        indexes = np.logical_or(geometry[0], geometry[1])
+        return sparse.csr_matrix(A[indexes])[:,indexes],interiorF[indexes], boundaryF[indexes], geometry
 
     @staticmethod
     def applyBoundary(U_interior, g, geometry,getCoordinate, getVecor):
         maxIndex = geometry.shape[1]
         U = np.zeros(maxIndex, dtype=np.float64)
-        interiorIndexs = np.flatnonzero(geometry[0])
-        bounderyIndexs = np.flatnonzero(geometry[1])
+        interiorIndexs = np.flatnonzero(np.logical_or(geometry[0],geometry[1]))
         exteriorIndexs = np.flatnonzero(geometry[2])
         U[interiorIndexs] = U_interior
-        U[bounderyIndexs] = [g(getVecor(getCoordinate(index))) for index in bounderyIndexs]
         U[exteriorIndexs] = np.nan
         return U
 
@@ -150,15 +163,30 @@ class shape(lattice):
 def defaultScheme(position):
     return np.array(([0, 1, 0], [1, -4, 1], [0, 1, 0]))
 
+def isNeumannFalse(position):
+    return False
+
+def schemeNeumannDefault(position):
+    return 0, 0
+
 class solve_interface(shape,finite_difference):
-    def __init__(self,f,g,N,isBoundaryFunction,scheme=None,dim=2,length=1, origin = 0):
+    @staticmethod
+
+    def __init__(self,f,g,N,isBoundaryFunction,scheme=None,dim=2,length=1, origin = 0,isNeumannFunc = isNeumannFalse, schemeNeumannFunc =None):
         shape.__init__(self,N,isBoundaryFunction,dim,length, origin )
+        self.isNeumannFunc = isNeumannFunc
+        self.schemeNeumannFunc = schemeNeumannFunc
+
         self.f = f
         self.g = g
         if scheme is None:
             self.scheme = defaultScheme
         else:
             self.scheme  = lambda position : scheme(position,self.h)
+        if scheme is None:
+            self.scheme = schemeNeumannDefault
+        else:
+            self.schemeNeumannFunc  = lambda position : schemeNeumannFunc(position,self.h)
         #dirichlet
         self.U = None
         self.A, self.Fi, self.Fb, self.geometry = self.getLinearizedDirichlet(self.scheme,
@@ -168,16 +196,17 @@ class solve_interface(shape,finite_difference):
                                                                              self.getIndex,
                                                                              self.getCoordinate,
                                                                              self.getPosition,
-                                                                             self.isBoundaryFunction)
-
+                                                                             self.isBoundaryFunction,
+                                                                             self.isNeumannFunc,
+                                                                             self.schemeNeumannFunc)
     def plot(self,title=""):
         self.X, self.Y = self.getMeshGrid()
         self.plot2D(self.X, self.Y, self.U, title)
 
 
 class linear_elliptic(solve_interface):
-    def __init__(self,f,g,N,isBoundaryFunction=None,scheme=None,dim=2,length=1, origin = 0):
-        solve_interface.__init__(self,f,g,N,isBoundaryFunction,scheme,dim,length,origin)
+    def __init__(self,f,g,N,isBoundaryFunction=None,scheme=None,dim=2,length=1, origin = 0,isNeumannFunc = isNeumannFalse, schemeNeumannFunc =None):
+        solve_interface.__init__(self,f,g,N,isBoundaryFunction,scheme,dim,length,origin,isNeumannFunc , schemeNeumannFunc )
         U_internal = splin.spsolve(self.A, self.Fi + self.Fb)
         self.U = finite_difference.applyBoundary(U_internal, self.g, self.geometry,self.getCoordinate, self.getPosition)
 
