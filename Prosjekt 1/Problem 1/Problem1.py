@@ -9,6 +9,8 @@ newparams = {'figure.figsize': (8.0, 4.0), 'axes.grid': True,
 plt.rcParams.update(newparams)
 from mpl_toolkits.mplot3d import Axes3D     # For 3-d plot
 from matplotlib import cm
+from matplotlib import ticker
+
 
 
 """Functions used in class"""
@@ -316,8 +318,13 @@ def solve_BVP_and_plot(bvp, N, test, plot=True, view=225, save=False):
             ax3 = fig.add_subplot(1, 3, 3, projection='3d')
 
             ax1 = plot2D(ax1, x, y, U, view=view)
-            ax2 = plot2D(ax2, x, y, U_exact, view=view)
-            ax3 = plot2D(ax3, x, y, err, view=view, zlabel="")
+            ax2 = plot2D(ax2, x, y, U_exact, view=view,)
+            ax3 = plot2D(ax3, x, y, err, view=view, zlabel="err")
+
+            formatter = ticker.ScalarFormatter()
+            formatter.set_scientific(True)
+            formatter.set_powerlimits((-2, 2))
+            ax3.w_zaxis.set_major_formatter(formatter)
 
             # Set to "save" to True to save the plot
             plt.subplots_adjust(hspace=0.3, wspace=0.45)
