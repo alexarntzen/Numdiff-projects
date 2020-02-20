@@ -295,7 +295,7 @@ class BVP(object):
 
 """Functions not used in class"""
 # solve the BVP and plot it if value plot=True
-def solve_BVP_and_plot(bvp, N, test, plot=True, view=225, save=False):
+def solve_BVP_and_plot(bvp, N, test, plot=True, view=225, save=False, savename="plot"):
     # Make grid and matrix
     A, x, y = bvp.get_Axy(bvp, N)
     F = bvp.f(x, y).ravel()
@@ -312,14 +312,17 @@ def solve_BVP_and_plot(bvp, N, test, plot=True, view=225, save=False):
         print('The error is {:.2e}'.format(np.max(np.max(err))) + ", N = " + str(N))
         if plot:
             fig = plt.figure(num=test, figsize=(18, 6), dpi=100)
-            fig.suptitle("Nummerical solution, Exact solution and Error of" +test, fontsize=20)
+            fig.suptitle(test, fontsize=20)
             ax1 = fig.add_subplot(1, 3, 1, projection='3d')
             ax2 = fig.add_subplot(1, 3, 2, projection='3d')
             ax3 = fig.add_subplot(1, 3, 3, projection='3d')
 
-            ax1 = plot2D(ax1, x, y, U, view=view)
-            ax2 = plot2D(ax2, x, y, U_exact, view=view,)
-            ax3 = plot2D(ax3, x, y, err, view=view, zlabel="err")
+            ax1 = plot2D(ax1, x, y, U, view=view, zlabel='$U(x,y)$',
+                         title="Numerical solution")
+            ax2 = plot2D(ax2, x, y, U_exact, view=view, zlabel='$u_{exact}(x,y)$',
+                         title="Exact solution")
+            ax3 = plot2D(ax3, x, y, err, view=view, zlabel="$|U - u_{exact}|$",
+                         title="Error")
 
             formatter = ticker.ScalarFormatter()
             formatter.set_scientific(True)
@@ -327,22 +330,23 @@ def solve_BVP_and_plot(bvp, N, test, plot=True, view=225, save=False):
             ax3.w_zaxis.set_major_formatter(formatter)
 
             # Set to "save" to True to save the plot
-            plt.subplots_adjust(hspace=0.3, wspace=0.45)
+            plt.subplots_adjust(hspace=0.3, wspace=0.05)
             if save:
-                plt.savefig(get_name_of_plot(test) + ".pdf", bbox_inches='tight')
+                plt.savefig(savename + ".pdf", bbox_inches='tight')
 
         return err
     except:
         print("No excat solution given")
         fig = plt.figure(num=test, figsize=(6, 6), dpi=100)
-        fig.suptitle("Nummerical solution, Exact solution and Error of" + test, fontsize=20)
+        fig.suptitle(test, fontsize=20)
         ax1 = fig.add_subplot(1, 1, 1, projection='3d')
-        ax1 = plot2D(ax1, x, y, U, view=view)
+        ax1 = plot2D(ax1, x, y, U, view=view, zlabel='$U(x,y)$',
+                         title="Numerical solution")
         # Set to "save" to True to save the plot
-        plt.subplots_adjust(hspace=0.3, wspace=0.45)
+        plt.subplots_adjust(hspace=0.3, wspace=0.05)
         # Set to "save" to True to save the plot
         if save:
-            plt.savefig(get_name_of_plot(test) + ".pdf", bbox_inches='tight')
+            plt.savefig(savename + ".pdf", bbox_inches='tight')
         return None
 
 
@@ -363,16 +367,9 @@ def convergence(bvp, P, N=10):
 
 
 """Functions related to plotting"""
-# fix name of plot, for saving
-def get_name_of_plot(title):
-    for i in range(len(title)):
-        if title[i] == " ":
-            title[i] = "_"
-    return title
-
 
 # Plot x, y, and u(x, y)
-def plot2D(ax, X, Y, Z, view=270, zlabel='$u(x,y)$'):
+def plot2D(ax, X, Y, Z, view=270, zlabel='', title=''):
     ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=cm.coolwarm)  # Surface-plot
     # Set initial view angle
     ax.view_init(30, view)
@@ -381,11 +378,12 @@ def plot2D(ax, X, Y, Z, view=270, zlabel='$u(x,y)$'):
     ax.set_xlabel('$x$')
     ax.set_ylabel('$y$')
     ax.set_zlabel(zlabel)
+    ax.set_title(title)
     return ax
 
 # Function to make a convergence plot
-def plot_convergence(H, E, p, title, save=False):
-    plt.figure()
+def plot_convergence(H, E, p, title, save=False, savename="convplot"):
+    plt.figure(figsize=(8, 3))
     plt.loglog(H, E, 'o-', label='p={:.2f}'.format(p))
     plt.grid('on')
     plt.xlabel('h')
@@ -395,7 +393,7 @@ def plot_convergence(H, E, p, title, save=False):
 
     # Set to "save" to True to save the plot
     if save:
-        plt.savefig(get_name_of_plot(title) + ".pdf", bbox_inches='tight')
+        plt.savefig(savename + ".pdf", bbox_inches='tight')
 
 
 """Code for Tests and tasks"""
@@ -502,7 +500,7 @@ def TEST_4(N, P=4, save=False):
         return x, y
 
     test = BVP(f, V, gs=gs, gn=gn, gw=gw, ge=ge, uexact=uexact)
-    solve_BVP_and_plot(test, N, "", save=save)
+    solve_BVP_and_plot(test, N, "William", save=save)
     print("------------------------------------------")
     print("Test convergence for TEST_4")
     Hconv, Econv, order = convergence(test, P=P)
@@ -566,11 +564,11 @@ def TEST_1c(N, P=4, c1=1, c2=1, save=False):
         return c1, c2
 
     test = BVP(f, V, gs=gs, gw=gw, gc=gc, uexact=uexact, get_Axy=get_Axy_circle_quadrant, apply_bcs=apply_bsc_circle_quadrant, G=G_circle_quadrant)
-    solve_BVP_and_plot(test, N, "TEST_1c", view=45, save=save)
+    solve_BVP_and_plot(test, N, "$u(x,y)=1-x^2-y^2$", view=45, save=save, savename="1c")
     print("------------------------------------------")
     print("Test convergence for TEST_1c")
     Hconv, Econv, order = convergence(test, P=P, N=65)
-    plot_convergence(Hconv, Econv, order, "Convergence for TEST_1c", save=save)
+    plot_convergence(Hconv, Econv, order, "Experimental order of convergence", save=save, savename="conv1c")
     print("Convergence order: " + "{:.2f}".format(order))
     print("------------------------------------------")
 
@@ -619,11 +617,11 @@ def Task_1d_long_step(N, P=4, save=False):
 #TEST_1(10, save=False)
 #TEST_2(10, save=False)
 #TEST_3(100, c1=1, c2=-1, save=False)
-TEST_4(100, save=False)
+#TEST_4(100, save=False)
 #TEST_4_long_step(10, save=False)
 
 """Run tasks"""
-#TEST_1c(50, save=False)
+#TEST_1c(100, save=False)
 #Task_1d(100)
 #Task_1d(10, save=False)
 #Task_1d_long_step(10, save=False)
