@@ -14,7 +14,7 @@ from matplotlib import cm
 
 class finite_difference:
     @staticmethod
-    def getLinearizedDirichlet(scheme,f, g, maxIndex, getIndex, getCoordinate, getVecor, isBoundary,isNeumann,schemeNeumann, schemeCenter=1):
+    def getLinearized(scheme,f, g, maxIndex, getIndex, getCoordinate, getVecor, isBoundary,isNeumann,schemeNeumann, schemeCenter=1):
         A = sparse.lil_matrix((maxIndex, maxIndex), dtype=np.float64)
         boundaryF = np.zeros(maxIndex)
         interiorF = np.zeros(maxIndex)
@@ -38,14 +38,14 @@ class finite_difference:
                         A[index, schemeIndex] = coeff
 
             elif isNeumann(getVecor(coordinate)):
-                left, right = schemeNeumann(getVecor(np.copy(coordinate)))
+                left, rightG, rightF = schemeNeumann(getVecor(np.copy(coordinate)))
                 for arrayCoordinate, coeff in np.ndenumerate(left):
                     schemeCoordinate = coordinate + arrayCoordinate - schemeCenter
                     schemeIndex = getIndex(schemeCoordinate)
                     if coeff != 0:
-                      #  geometry[1][schemeIndex] = True
+                        geometry[1][schemeIndex] = True
                         A[index, schemeIndex] = coeff
-                boundaryF[index] = right*g(getVecor(np.copy(coordinate))) + 0* f(getVecor(np.copy(coordinate)))
+                boundaryF[index] = rightG*g(getVecor(np.copy(coordinate))) + rightF* f(getVecor(np.copy(coordinate)))
                 geometry[1][index] = True
 
         np.logical_and(np.logical_not(geometry[0]),np.logical_not(geometry[1]),geometry[2])
@@ -167,7 +167,7 @@ def isNeumannFalse(position):
     return False
 
 def schemeNeumannDefault(position):
-    return 0, 0
+    return 0, 0, 0
 
 class solve_interface(shape,finite_difference):
     @staticmethod
@@ -189,7 +189,7 @@ class solve_interface(shape,finite_difference):
             self.schemeNeumannFunc  = lambda position : schemeNeumannFunc(position,self.h)
         #dirichlet
         self.U = None
-        self.A, self.Fi, self.Fb, self.geometry = self.getLinearizedDirichlet(self.scheme,
+        self.A, self.Fi, self.Fb, self.geometry = self.getLinearized(self.scheme,
                                                                              self.f,
                                                                              self.g,
                                                                              self.maxIndex,

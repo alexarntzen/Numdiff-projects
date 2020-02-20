@@ -29,6 +29,21 @@ def schemeMaker(position,h,constant,V):
     #  y - >
     return -laplacian*constant/h**2 + 1/(2*h)*grad
 
+def schemeMakerLonStep(position,h,constant,V):
+
+    laplacian = np.array([[0, 1, 0],
+                          [1, -4, 1],
+                            [0, 1, 0]])
+
+    grad  = np.array([[0,-V(position)[0] , 0],
+                    [0, -V(position)[1] + V(position)[0] ,V(position)[1] ],
+                    [0,0 , 0]])
+
+    # x
+    # |
+    #  y - >
+    return -laplacian*constant/h**2 + 1/h*grad
+
 
 def schemeMakerNeumann2(position,h,constant,V):
 
@@ -39,6 +54,7 @@ def schemeMakerNeumann2(position,h,constant,V):
     grad  = np.array([[0, -V(position)[0], 0],
                     [0, 0, 0 ],
                     [0, V(position)[0], 0]])
+
     deriv = np.array([[0, 3/2, 0],
                     [0, -2, 0 ],
                     [0, 1/2 , 0]])
@@ -59,8 +75,8 @@ def schemeMakerNeumann(position,h,constant,V):
     # |
     # v
     #  y - >
-
-    return deriv/h, 1
+    #right, leftG, leftF
+    return deriv/h, 1, 0
 
 
 def isNeumann(position):
@@ -68,8 +84,8 @@ def isNeumann(position):
         return True
 
 dim = 2
-N = 15
-mu = 1e-2
+N = 5
+mu = 1e-3
 def f(x):
     return 1
 
@@ -81,12 +97,18 @@ def V(x):
     return [x[1],-x[0]]
 
 scheme1 = lambda postion,h: schemeMaker(postion,h,mu,V)
+scheme1LongStep = lambda postion,h: schemeMakerLonStep(postion,h,mu,V)
+
 schemeNeumann1 = lambda postion,h: schemeMakerNeumann(postion,h,mu,V)
 
-
 test1 = BVP.linear_elliptic(f, g, N,scheme = scheme1)
-test1.plot("Uten neuman")
+#test1.plot("Oppgave d: Vanling")
+
+
+
+test1 = BVP.linear_elliptic(f, g, N,scheme = scheme1LongStep)
+test1.plot("Oppgave d: Long step ")
 
 test2 = BVP.linear_elliptic(f, g, N,scheme = scheme1, isNeumannFunc = isNeumann, schemeNeumannFunc = schemeNeumann1 )
-test2.plot("Med neumann")
+test2.plot("Oppgave d: Med neumann")
 
