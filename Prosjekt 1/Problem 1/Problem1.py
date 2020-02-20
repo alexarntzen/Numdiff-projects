@@ -147,48 +147,6 @@ def get_Axy_circle_quadrant(bvp, N):
                                            + (2 * yp / (h * h * eta * (eta + 1)) + h1 / (
                         eta * (eta + 1))) * v2  # U_{i,j+1}, U_n
 
-    """    for i in range(1, N):
-        for j in range(1, N):
-            index = bvp.I(i, j, N)
-            xp = x[0, i]
-            yp = y[j, 0]
-            v1, v2 = bvp.V(xp, yp)
-            if P[i, j] == 1:
-                rho = (np.sqrt(bvp.c - yp ** 2) - xp) / h
-                A[index, index] = - 2 * muhh - 2 * muhh / rho \
-                                  - (h1 / rho - h1) * v1  # U_ij, U_p
-                A[index, index - 1] = 2 * muhh / (1 + rho) \
-                                       + (- h1 * rho / (rho + 1)) * v1  # U_{i-1,j}, U_w
-                A[index, index + 1] = 2 * muhh / (rho * (rho + 1)) \
-                                       + (h1 / (rho * (rho + 1))) * v1  # U_{i+1,j}, U_e
-                A[index, index - N - 1] = muhh - v2 * h2  # U_{i,j-1}, U_s
-                A[index, index + N + 1] = muhh + v2 * h2  # U_{i,j+1}, U_n
-            if P[i, j] == 2:
-                eta = (np.sqrt(bvp.c - xp ** 2) - yp) / h
-                A[index, index] += - 2 * muhh - 2 * muhh / eta \
-                                   - (h1 / eta - h1) * v2  # U_ij, U_p
-                A[index, index - N - 1] += 2 * muhh / (1 + eta) \
-                                           + (- h1 * eta / (eta + 1)) * v2  # U_{i,j-1}, U_s
-                A[index, index + N + 1] += 2 * muhh / (eta * (eta + 1)) \
-                                           + ( h1 / (eta * (eta + 1))) * v2  # U_{i,j+1}, U_n
-                A[index, index - 1] += muhh - v1 * h2  # U_{i-1,j}, U_w
-                A[index, index + 1] += muhh + v1 * h2  # U_{i+1,j}, U_e
-            if P[i, j] == 3:
-                rho = (np.sqrt(bvp.c - yp ** 2) - xp) / h
-                A[index, index] = - 2 * muhh - 2 * muhh / rho \
-                                  - (h1 / rho - h1) * v1  # U_ij, U_p
-                A[index, index - 1] = 2 * muhh / (1 + rho) \
-                                      + (- h1 * rho / (rho + 1)) * v1  # U_{i-1,j}, U_w
-                A[index, index + 1] = 2 * muhh / (rho * (rho + 1)) \
-                                      + ( h1 / (rho * (rho + 1))) * v1  # U_{i+1,j}, U_e
-                eta = (np.sqrt(bvp.c - xp ** 2) - yp) / h
-                A[index, index] += - 2 * muhh - 2 * muhh / eta \
-                                   - ( h1 / eta - h1) * v2  # U_ij, U_p
-                A[index, index - N - 1] += 2 * muhh / (1 + eta) \
-                                           + (- h1 * eta / (eta + 1)) * v2  # U_{i,j-1}, U_s
-                A[index, index + N + 1] += 2 * muhh / (eta * (eta + 1)) \
-                                           + ( h1 / (eta * (eta + 1))) * v2  # U_{i,j+1}, U_n
-"""
     # Boundary condition of circle quadrant
     for i in range(1, N):
         for j in range(1, N):
@@ -236,7 +194,7 @@ def get_Axy_square_longer_step_1d(bvp, N):
         for j in range(1, N):
             index = bvp.I(i, j, N)
             v1, v2 = bvp.V(x[0, i], y[j, 0])
-            A[index, index] = - 4 * muhh + v1 / h - v2 / h # U_ij, U_p
+            A[index, index] = - 4 * muhh + v1 / h - v2 / h  # U_ij, U_p
             A[index, index - N - 1] = muhh   # U_{i,j-1}, U_s
             A[index, index + N + 1] = muhh + v2 / h  # U_{i,j+1}, U_n
             A[index, index - 1] = muhh - v1 / h  # U_{i-1,j}, U_w
@@ -346,20 +304,38 @@ def solve_BVP_and_plot(bvp, N, test, plot=True, view=225, save=False):
     A_csr = A.tocsr()
     U = spsolve(A_csr, F).reshape((N+1, N+1))
 
-    if plot:
-        plot2D(x, y, U, "Numerical solution of " + test, view=view, save=save)
     try:
         U_exact = bvp.uexact(x, y)
         err = np.abs(U - U_exact)
         print('The error is {:.2e}'.format(np.max(np.max(err))) + ", N = " + str(N))
-
         if plot:
-            plot2D(x, y, U_exact, "Exact solution of " + test, view=view, save=save)
-            plot2D(x, y, err, "Error of " + test, view=view, save=save)
-        return err
+            fig = plt.figure(num=test, figsize=(18, 6), dpi=100)
+            fig.suptitle("Nummerical solution, Exact solution and Error of" +test, fontsize=20)
+            ax1 = fig.add_subplot(1, 3, 1, projection='3d')
+            ax2 = fig.add_subplot(1, 3, 2, projection='3d')
+            ax3 = fig.add_subplot(1, 3, 3, projection='3d')
 
+            ax1 = plot2D(ax1, x, y, U, view=view)
+            ax2 = plot2D(ax2, x, y, U_exact, view=view)
+            ax3 = plot2D(ax3, x, y, err, view=view, zlabel="")
+
+            # Set to "save" to True to save the plot
+            plt.subplots_adjust(hspace=0.3, wspace=0.45)
+            if save:
+                plt.savefig(get_name_of_plot(test) + ".pdf", bbox_inches='tight')
+
+        return err
     except:
         print("No excat solution given")
+        fig = plt.figure(num=test, figsize=(6, 6), dpi=100)
+        fig.suptitle("Nummerical solution, Exact solution and Error of" + test, fontsize=20)
+        ax1 = fig.add_subplot(1, 1, 1, projection='3d')
+        ax1 = plot2D(ax1, x, y, U, view=view)
+        # Set to "save" to True to save the plot
+        plt.subplots_adjust(hspace=0.3, wspace=0.45)
+        # Set to "save" to True to save the plot
+        if save:
+            plt.savefig(get_name_of_plot(test) + ".pdf", bbox_inches='tight')
         return None
 
 
@@ -389,9 +365,7 @@ def get_name_of_plot(title):
 
 
 # Plot x, y, and u(x, y)
-def plot2D(X, Y, Z, title="", view=225, save=False):
-    fig = plt.figure(figsize=(8, 6), dpi=100)
-    ax = fig.gca(projection='3d')
+def plot2D(ax, X, Y, Z, view=270, zlabel='$u(x,y)$'):
     ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=cm.coolwarm)  # Surface-plot
     # Set initial view angle
     ax.view_init(30, view)
@@ -399,14 +373,8 @@ def plot2D(X, Y, Z, title="", view=225, save=False):
     # Set labels and show figure
     ax.set_xlabel('$x$')
     ax.set_ylabel('$y$')
-    ax.set_zlabel('$u(x,y)$')
-    ax.set_title(title)
-
-
-    # Set to "save" to True to save the plot
-    if save:
-        plt.savefig(get_name_of_plot(title) + ".pdf", bbox_inches='tight')
-
+    ax.set_zlabel(zlabel)
+    return ax
 
 # Function to make a convergence plot
 def plot_convergence(H, E, p, title, save=False):
@@ -517,17 +485,17 @@ def TEST_4(N, P=4, save=False):
     gw = lambda y: np.zeros_like(y)
     ge = lambda y: np.zeros_like(y)
     f = lambda x, y: 5 * np.pi * np.pi * np.sin(1 * np.pi * x) * np.sin(2 * np.pi * y) \
-                     + y * np.pi * np.cos(1 * np.pi * x) * np.sin(2 * np.pi * y) \
-                     - x * 2 * np.pi * np.sin(1 * np.pi * x) * np.cos(2 * np.pi * y)
+                     + x * np.pi * np.cos(1 * np.pi * x) * np.sin(2 * np.pi * y) \
+                     + y * 2 * np.pi * np.sin(1 * np.pi * x) * np.cos(2 * np.pi * y)
     # exact solution
     uexact = lambda x, y: np.sin(1 * np.pi * x) * np.sin(2 * np.pi * y)
 
     # function acting as vector
     def V(x, y):
-        return y, -x
+        return x, y
 
     test = BVP(f, V, gs=gs, gn=gn, gw=gw, ge=ge, uexact=uexact)
-    solve_BVP_and_plot(test, N, "TEST_4", save=save)
+    solve_BVP_and_plot(test, N, "", save=save)
     print("------------------------------------------")
     print("Test convergence for TEST_4")
     Hconv, Econv, order = convergence(test, P=P)
@@ -559,7 +527,7 @@ def TEST_4_long_step(N, P=4, save=False):
     solve_BVP_and_plot(test, N, "TEST_4 long step", save=save)
     print("------------------------------------------")
     print("Test convergence for TEST_4 long step")
-    Hconv, Econv, order = convergence(test, P=P, N=100)
+    Hconv, Econv, order = convergence(test, P=P, N=10)
     plot_convergence(Hconv, Econv, order, "Convergence for TEST_4 long step", save=save)
     print("Convergence order: " + "{:.2f}".format(order))
     print("------------------------------------------")
@@ -644,13 +612,14 @@ def Task_1d_long_step(N, P=4, save=False):
 #TEST_1(10, save=False)
 #TEST_2(10, save=False)
 #TEST_3(100, c1=1, c2=-1, save=False)
-#TEST_4(100, save=False)
+TEST_4(100, save=False)
 #TEST_4_long_step(10, save=False)
 
 """Run tasks"""
 #TEST_1c(50, save=False)
-Task_1d(10, save=False)
-Task_1d_long_step(10, save=False)
+#Task_1d(100)
+#Task_1d(10, save=False)
+#Task_1d_long_step(10, save=False)
 
 # save=True to save the plots
 
