@@ -617,7 +617,7 @@ def Task_1d_long_step(N, P=4, save=False):
 #TEST_1(10, save=False)
 #TEST_2(10, save=False)
 #TEST_3(100, c1=1, c2=-1, save=False)
-#TEST_4(100, save=True)
+#TEST_4(100, save=False)
 #TEST_4_long_step(10, save=False)
 
 """Run tasks"""
