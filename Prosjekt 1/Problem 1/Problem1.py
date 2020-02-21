@@ -295,7 +295,7 @@ class BVP(object):
 
 """Functions not used in class"""
 # solve the BVP and plot it if value plot=True
-def solve_BVP_and_plot(bvp, N, test, plot=True, view=225, save=False, savename="plot"):
+def solve_BVP_and_plot(bvp, N, testname="", plot=True, view=225, save=False, savename="plot"):
     # Make grid and matrix
     A, x, y = bvp.get_Axy(bvp, N)
     F = bvp.f(x, y).ravel()
@@ -311,8 +311,8 @@ def solve_BVP_and_plot(bvp, N, test, plot=True, view=225, save=False, savename="
         err = np.abs(U - U_exact)
         print('The error is {:.2e}'.format(np.max(np.max(err))) + ", N = " + str(N))
         if plot:
-            fig = plt.figure(num=test, figsize=(18, 6), dpi=100)
-            fig.suptitle(test, fontsize=20)
+            fig = plt.figure(num=testname, figsize=(18, 6), dpi=100)
+            fig.suptitle(testname, fontsize=20)
             ax1 = fig.add_subplot(1, 3, 1, projection='3d')
             ax2 = fig.add_subplot(1, 3, 2, projection='3d')
             ax3 = fig.add_subplot(1, 3, 3, projection='3d')
@@ -337,8 +337,8 @@ def solve_BVP_and_plot(bvp, N, test, plot=True, view=225, save=False, savename="
         return err
     except:
         print("No excat solution given")
-        fig = plt.figure(num=test, figsize=(6, 6), dpi=100)
-        fig.suptitle(test, fontsize=20)
+        fig = plt.figure(num=testname, figsize=(6, 6), dpi=100)
+        fig.suptitle(testname, fontsize=20)
         ax1 = fig.add_subplot(1, 1, 1, projection='3d')
         ax1 = plot2D(ax1, x, y, U, view=view, zlabel='$U(x,y)$',
                          title="Numerical solution")
@@ -383,10 +383,10 @@ def plot2D(ax, X, Y, Z, view=270, zlabel='', title=''):
 
 # Function to make a convergence plot
 def plot_convergence(H, E, p, title, save=False, savename="convplot"):
-    plt.figure(figsize=(8, 3))
-    plt.loglog(H, E, 'o-', label='p={:.2f}'.format(p))
-    plt.grid('on')
-    plt.xlabel('h')
+    plt.figure(figsize=(10, 3))
+    plt.loglog(H, E, 'o-', label='$p=' + '{:.2f}'.format(p) + '$')
+    plt.grid(False)
+    plt.xlabel('$h$')
     plt.ylabel('Error')
     plt.title(title)
     plt.legend()
@@ -421,7 +421,7 @@ def TEST_1(N, P=4, save=False):
     print("------------------------------------------")
     print("Test convergence for TEST_1")
     Hconv, Econv, order = convergence(test, P=P)
-    plot_convergence(Hconv, Econv, order, "Convergence for TEST_1", save=save)
+    plot_convergence(Hconv, Econv, order, testname="Convergence for TEST_1", save=save)
     print("Convergence order: " + "{:.2f}".format(order))
     print("------------------------------------------")
 
@@ -444,7 +444,7 @@ def TEST_2(N, P=4, save=False):
         return 1, 1
 
     test = BVP(f, V,  gs=gs, gn=gn, gw=gw, ge=ge, uexact=uexact)
-    solve_BVP_and_plot(test, N, "TEST_2", save=save)
+    solve_BVP_and_plot(test, N, testname="TEST_2", save=save)
     print("------------------------------------------")
     print("Test convergence for TEST_2")
     Hconv, Econv, order = convergence(test, P=P)
@@ -473,7 +473,7 @@ def TEST_3(N, P=4, c1=1, c2=1, save=False):
         return c1, c2
 
     test = BVP(f, V, gs=gs, gn=gn, gw=gw, ge=ge, uexact=uexact)
-    solve_BVP_and_plot(test, N, "TEST_3", save=save)
+    solve_BVP_and_plot(test, N, testname="TEST_3", save=save)
     print("------------------------------------------")
     print("Test convergence for TEST_3")
     Hconv, Econv, order = convergence(test, P=P)
@@ -500,11 +500,11 @@ def TEST_4(N, P=4, save=False):
         return x, y
 
     test = BVP(f, V, gs=gs, gn=gn, gw=gw, ge=ge, uexact=uexact)
-    solve_BVP_and_plot(test, N, save=save)
+    solve_BVP_and_plot(test, N, save=save, savename="1ab")
     print("------------------------------------------")
     print("Test convergence for u(x, y) = sin(pi x) cos(2 pi x)$")
     Hconv, Econv, order = convergence(test, P=P)
-    plot_convergence(Hconv, Econv, order, "Experimental order of convergence", save=save)
+    plot_convergence(Hconv, Econv, order, "Experimental order of convergence", save=save, savename="conv1ab")
     print("Convergence order: " + "{:.2f}".format(order))
     print("------------------------------------------")
 
@@ -529,7 +529,7 @@ def TEST_4_long_step(N, P=4, save=False):
         return y, -x
 
     test = BVP(f, V, gs=gs, gn=gn, gw=gw, ge=ge, uexact=uexact, get_Axy=get_Axy_square_longer_step_1d)
-    solve_BVP_and_plot(test, N, "TEST_4 long step", save=save)
+    solve_BVP_and_plot(test, N, testname="TEST_4 long step", save=save)
     print("------------------------------------------")
     print("Test convergence for TEST_4 long step")
     Hconv, Econv, order = convergence(test, P=P, N=10)
@@ -564,7 +564,7 @@ def TEST_1c(N, P=4, c1=1, c2=1, save=False):
         return c1, c2
 
     test = BVP(f, V, gs=gs, gw=gw, gc=gc, uexact=uexact, get_Axy=get_Axy_circle_quadrant, apply_bcs=apply_bsc_circle_quadrant, G=G_circle_quadrant)
-    solve_BVP_and_plot(test, N, "$u(x,y)=1-x^2-y^2$", view=45, save=save, savename="1c")
+    solve_BVP_and_plot(test, N, save=save, savename="1c", view=45)
     print("------------------------------------------")
     print("Test convergence for TEST_1c")
     Hconv, Econv, order = convergence(test, P=P, N=65)
@@ -588,7 +588,7 @@ def Task_1d(N, P=4, save=False):
         return y, -x
 
     test = BVP(f, V,  gs=gs, gn=gn, gw=gw, ge=ge, mu=1e-2)
-    solve_BVP_and_plot(test, N, "Task 1d", view=255, save=save)
+    solve_BVP_and_plot(test, N, testname="Task 1d", view=255, save=save)
     print("------------------------------------------")
 
 
@@ -607,7 +607,7 @@ def Task_1d_long_step(N, P=4, save=False):
         return y, -x
 
     test = BVP(f, V,  gs=gs, gn=gn, gw=gw, ge=ge, mu=1e-2, get_Axy=get_Axy_square_longer_step_1d)
-    solve_BVP_and_plot(test, N, "Task 1d long step", view=255, save=save)
+    solve_BVP_and_plot(test, N, testname="Task 1d long step", view=255, save=save)
     print("------------------------------------------")
 
 
