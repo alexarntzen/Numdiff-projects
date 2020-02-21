@@ -500,7 +500,7 @@ def TEST_4(N, P=4, save=False):
         return x, y
 
     test = BVP(f, V, gs=gs, gn=gn, gw=gw, ge=ge, uexact=uexact)
-    solve_BVP_and_plot(test, N, "$u(x, y) = \sin(\pi x) \cos(2 \pi x)$", save=save)
+    solve_BVP_and_plot(test, N, save=save)
     print("------------------------------------------")
     print("Test convergence for u(x, y) = sin(pi x) cos(2 pi x)$")
     Hconv, Econv, order = convergence(test, P=P)
