@@ -85,7 +85,7 @@ def isNeumann(position):
 
 dim = 2
 N = 30
-mu = 1e-3
+mu = 1e-2
 def f(x):
     return 1
 
