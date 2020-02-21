@@ -5,7 +5,7 @@ sys.path.append('../Problem2/')
 import BVP_solver as BVP
 
 """
-Running this file will store all the relevant plots from problem 1d) on your computer
+Running this file will store the relevant plots (ca 3) from problem 1d) on your computer
 """
 
 # The BVP objects accepts functions that return arrays that determine the descritization at that point

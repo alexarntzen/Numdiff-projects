@@ -1,6 +1,9 @@
 import matplotlib.pyplot as plt
 import BVP_solver as BVP
 
+"""
+Running this file will store  relevant plots (ca from problem 2 on your computer
+"""
 
 #Boundary contitions
 def g(x):
@@ -14,7 +17,7 @@ lam=1.5
 
 lamList = [1.5,2,3]
 
-#Solve and plot using solver from different file
+#Solve and plot using solver from BVP_solver.py
 fig = plt.figure(figsize=(18, 5))
 for i in range(len(lamList)):
     print(i)
