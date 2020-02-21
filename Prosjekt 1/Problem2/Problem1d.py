@@ -84,7 +84,7 @@ def isNeumann(position):
         return True
 
 dim = 2
-N = 30
+N = 5
 mu = 1e-3
 def f(x):
     return 1
@@ -101,13 +101,32 @@ scheme1LongStep = lambda postion,h: schemeMakerLonStep(postion,h,mu,V)
 
 schemeNeumann1 = lambda postion,h: schemeMakerNeumann(postion,h,mu,V)
 
-#test1 = BVP.linear_elliptic(f, g, N,scheme = scheme1)
-#test1.plot("Oppgave d: Vanling")
-
-Oppg1dNormal= BVP.linear_elliptic(f, g, N,scheme = scheme1)
-Oppg1dNormal.plot("Oppgave d: Normal")
-
-#test2 = BVP.linear_elliptic(f, g, N,scheme = scheme1, isNeumannFunc = isNeumann, schemeNeumannFunc = schemeNeumann1 )
-#test2.plot("Oppgave d: Med neumann")
+test1 = BVP.linear_elliptic(f, g, N,scheme = scheme1)
 
 
+
+nList  = [20,40,50]
+fig = plt.figure(figsize=(18, 5))
+for i in range(len(nList)):
+    ax = fig.add_subplot(1, len(nList), i+1, projection='3d')
+    Oppg1dNormal= BVP.linear_elliptic(f, g, nList[i],scheme = scheme1)
+    Oppg1dNormal.plot(f"$n = {nList[i]}$",ax)
+    plt.savefig("Oppgave_d_Normal")
+
+
+
+#
+#
+# for i in range(len(Nlist)):
+#     fig, axis, = plt.subplots(1, len(Nlist), figsize=(6, 18), projection='3d')
+#     oppg1dNaumann = BVP.linear_elliptic(f, g, N, scheme=scheme1, isNeumannFunc=isNeumann, schemeNeumannFunc=schemeNeumann1)
+#     oppg1dNaumann.plot("Oppgave_d_Naumann", axis[i])
+#     plt.savefig("Oppgave_d_Naumann",)
+#
+# for i in range(len(Nlist)):
+#     fig, axis, = plt.subplots(1, len(Nlist), figsize=(6, 18), projection='3d')
+#     oppg1dLongStep = BVP.linear_elliptic(f, g, N, scheme=scheme1LongStep)
+#     oppg1dLongStep.plot("Oppgave_d_LongStep", axis[i])
+#     plt.savefig("Oppgave_d_LongStep",)
+#
+#

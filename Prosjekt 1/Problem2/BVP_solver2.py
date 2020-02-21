@@ -53,7 +53,7 @@ class finite_difference:
         return sparse.csr_matrix(A[indexes])[:,indexes],interiorF[indexes], boundaryF[indexes], geometry
 
     @staticmethod
-    def applyBoundary(U_interior, g, geometry,getCoordinate, getVecor):
+    def applyBoundary(U_interior, geometry,getCoordinate, getVecor):
         maxIndex = geometry.shape[1]
         U = np.zeros(maxIndex, dtype=np.float64)
         interiorIndexs = np.flatnonzero(np.logical_or(geometry[0],geometry[1]))
@@ -108,19 +108,23 @@ class lattice():
         return np.reshape(vector, shape + 1, order="F")
 
     #Only for 2D
-    def plot2D(self, X, Y, U, title=""):
+    def plot2D(self, X, Y, U, title=None,ax=None,zlabel='$u(x,y)$',show=False):
         Ugrid = self.getLattice(U, self.shape)
-        fig = plt.figure(figsize=(8, 6), dpi=100)
-        ax = fig.gca(projection='3d')
+        if ax is None:
+            fig = plt.figure(figsize=(8, 6), dpi=100)
+            ax = fig.gca(projection='3d')
+            show = True
         ax.plot_surface(X, Y, Ugrid, rstride=1, cstride=1, cmap=cm.coolwarm)  # Surface-plot
         # Set initial view angle
-
         # Set labels and show figure
         ax.set_xlabel('$x$')
         ax.set_ylabel('$y$')
-        ax.set_zlabel('$u(x,y)$')
-        ax.set_title(title)
-        plt.show()
+        if zlabel != "":
+            ax.set_zlabel('$u(x,y)$')
+        if title is not None:
+            ax.set_title(title)
+        if show:
+            plt.show()
 
     #Only for 2D
     def getMeshGrid(self):
@@ -159,9 +163,9 @@ class shape(lattice):
         else:
             return False
 
-# Cartesian coordinates. Important !
-def defaultScheme(position):
-    return np.array(([0, 1, 0], [1, -4, 1], [0, 1, 0]))
+    # Cartesian coordinates. Important !
+    def defaultScheme(self,position):
+        return np.array(([0, 1, 0], [1, -4, 1], [0, 1, 0]))/self.h**2
 
 def isNeumannFalse(position):
     return False
@@ -172,22 +176,27 @@ def schemeNeumannDefault(position):
 class solve_interface(shape,finite_difference):
     @staticmethod
 
-    def __init__(self,f,g,N,isBoundaryFunction,scheme=None,dim=2,length=1, origin = 0,isNeumannFunc = isNeumannFalse, schemeNeumannFunc =None):
+    def __init__(self,f,g,N,isBoundaryFunction,scheme=None,dim=2,length=1, origin = 0,isNeumannFunc = None, schemeNeumannFunc =None):
         shape.__init__(self,N,isBoundaryFunction,dim,length, origin )
-        self.isNeumannFunc = isNeumannFunc
-        self.schemeNeumannFunc = schemeNeumannFunc
 
         self.f = f
         self.g = g
+
+        if isNeumannFunc is None:
+            self.isNeumannFunc = isNeumannFalse
+        else:
+            self.isNeumannFunc = isNeumannFunc
+
         if scheme is None:
-            self.scheme = defaultScheme
+            self.scheme = self.defaultScheme
         else:
             self.scheme  = lambda position : scheme(position,self.h)
-        if scheme is None:
-            self.scheme = schemeNeumannDefault
+
+        if schemeNeumannFunc is None:
+            self.schemeNeumannFunc = schemeNeumannDefault
         else:
             self.schemeNeumannFunc  = lambda position : schemeNeumannFunc(position,self.h)
-        #dirichlet
+
         self.U = None
         self.A, self.Fi, self.Fb, self.geometry = self.getLinearized(self.scheme,
                                                                              self.f,
@@ -199,44 +208,44 @@ class solve_interface(shape,finite_difference):
                                                                              self.isBoundaryFunction,
                                                                              self.isNeumannFunc,
                                                                              self.schemeNeumannFunc)
-    def plot(self,title=""):
+    def plot(self,title=None,ax=None,zlabel='$u(x,y)$',show=False):
         self.X, self.Y = self.getMeshGrid()
-        self.plot2D(self.X, self.Y, self.U, title)
+        self.plot2D(self.X, self.Y, self.U, title,ax,zlabel,show)
 
 
 class linear_elliptic(solve_interface):
-    def __init__(self,f,g,N,isBoundaryFunction=None,scheme=None,dim=2,length=1, origin = 0,isNeumannFunc = isNeumannFalse, schemeNeumannFunc =None):
+    def __init__(self,f,g,N,isBoundaryFunction=None,scheme=None,dim=2,length=1, origin = 0,isNeumannFunc = None, schemeNeumannFunc =None):
         solve_interface.__init__(self,f,g,N,isBoundaryFunction,scheme,dim,length,origin,isNeumannFunc , schemeNeumannFunc )
         U_internal = splin.spsolve(self.A, self.Fi + self.Fb)
-        self.U = finite_difference.applyBoundary(U_internal, self.g, self.geometry,self.getCoordinate, self.getPosition)
+        self.U = finite_difference.applyBoundary(U_internal, self.geometry,self.getCoordinate, self.getPosition)
 
 
 #F is not used because
 class nonlinear_poisson(solve_interface):
-    def __init__(self,f,g,N,isBoundaryFunction=None,scheme=None,dim=2,length=1, origin = 0, maxIterNewton = 1000, lam=1.5,guess = None):
-        solve_interface.__init__(self,f,g,N,isBoundaryFunction,scheme,dim,length,origin)
+    def __init__(self,f,g,N,isBoundaryFunction=None,scheme=None,dim=2,length=1, origin = 0, maxIterNewton = 1000, lam=1.5,guess = None,isNeumannFunc = None, schemeNeumannFunc =None):
+        solve_interface.__init__(self,f,g,N,isBoundaryFunction,scheme,dim,length,origin,isNeumannFunc, schemeNeumannFunc)
         self.lam = lam
         if guess == None:
             guess = np.ones(len(self.Fb))
 
-        U_internal, self.error, self.iter = self.solveNonlinear2(A=self.A, u_n=guess, F_b=self.Fb, maxiter=maxIterNewton, lam=self.lam)
-        self.U = finite_difference.applyBoundary(U_internal, self.g, self.geometry,self.getCoordinate, self.getPosition)
+        U_internal, self.error, self.iter = self.solveNonlinear1(A=self.A, u_n=guess, F_b=self.Fb, maxiter=maxIterNewton, lam=self.lam)
+        self.U = finite_difference.applyBoundary(U_internal, self.geometry,self.getCoordinate, self.getPosition)
 
-    # Ikke generell
-    def solveNonlinear2(self, A, u_n, F_b, lam=1.5, tol=10e-10, maxiter=100):
+    @staticmethod
+    def solveNonlinear1(A, u_n, F_b, lam=1.5, tol=10e-10, maxiter=100):
         du = np.copy(u_n)
-        error = 1
+        error = 100
         iter = 0
-        F = A @ u_n - self.h ** 2 * lam / u_n ** 2 - F_b
+        F = A @ u_n - lam / u_n ** 2 + F_b
 
         while iter < maxiter and error > tol:
-            jacobian = A + np.diag(lam / u_n) * self.h ** 2
+            jacobian = A + np.diag(lam / u_n)
 
             du = splin.lgmres(jacobian, -F, du)[0]
 
             u_n += du
 
-            F = A @ u_n - self.h ** 2 * lam / u_n ** 2 - F_b
+            F = A @ u_n - lam / u_n **2 - F_b
 
             error = np.nanmax(np.abs(F))
             iter += 1

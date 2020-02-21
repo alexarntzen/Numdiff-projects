@@ -14,20 +14,32 @@ def isBoundary(position):
 
 
 dim = 2
-N = 20
+N = 30
+
 tol = 10e-5
-maxiter = 1000
-lam=50
+maxiter = 100
+lam=2
+
 #Not used
 def f(x):
-    return 1
+    return 0
 
 #Boundary contitions
 def g(x):
-    return 2
+    return 1
+
+def scheme(position,h):
+    laplacian = np.array([[0,  1,  0],
+                          [1, -4,  1],
+                          [0,  1,  0]])
+
+    # x
+    # |
+    #  y - >
+    return laplacian/h**2
 
 
-
-membrane = BVP.nonlinear_poisson(f, g, N, maxIterNewton = maxiter, lam = lam, dim = dim, length=2 )
+membrane = BVP.nonlinear_poisson(f, g, N, maxIterNewton = maxiter, lam = lam, dim = dim, length=1 )
 membrane.plot("Microelectromechanical device")
-#membrane.summary()
+membrane.summary()
+
