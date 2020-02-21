@@ -387,7 +387,7 @@ def plot_convergence(H, E, p, title, save=False, savename="convplot"):
     plt.loglog(H, E, 'o-', label='p={:.2f}'.format(p))
     plt.grid('on')
     plt.xlabel('h')
-    plt.ylabel('error')
+    plt.ylabel('Error')
     plt.title(title)
     plt.legend()
 
@@ -500,11 +500,11 @@ def TEST_4(N, P=4, save=False):
         return x, y
 
     test = BVP(f, V, gs=gs, gn=gn, gw=gw, ge=ge, uexact=uexact)
-    solve_BVP_and_plot(test, N, "William", save=save)
+    solve_BVP_and_plot(test, N, "$u(x, y) = \sin(\pi x) + \cos(2 \pi x)$", save=save)
     print("------------------------------------------")
     print("Test convergence for TEST_4")
     Hconv, Econv, order = convergence(test, P=P)
-    plot_convergence(Hconv, Econv, order, "Convergence for TEST_3", save=save)
+    plot_convergence(Hconv, Econv, order, "Experimental order of convergence", save=save)
     print("Convergence order: " + "{:.2f}".format(order))
     print("------------------------------------------")
 
@@ -617,7 +617,7 @@ def Task_1d_long_step(N, P=4, save=False):
 #TEST_1(10, save=False)
 #TEST_2(10, save=False)
 #TEST_3(100, c1=1, c2=-1, save=False)
-#TEST_4(100, save=False)
+#TEST_4(100, save=True)
 #TEST_4_long_step(10, save=False)
 
 """Run tasks"""

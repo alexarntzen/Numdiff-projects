@@ -219,7 +219,7 @@ def BC_square_neumann(A, N, bvp):
         if index - N - 1 >= 0:
             A[index, index - N - 1] = 2 * muhh  # U_{i,j-1}, U_s
         if index + N + 1 <= N2 - 1:
-            A[index, index + 1] = muhh + v1 * h2  # U_{i,j+1}, U_e
+            A[index, index + 1] = muhh - v1 * h2  # U_{i,j+1}, U_e
 
     # x = 0, west Dirichlet
     for j in range(0, N + 1):
@@ -624,7 +624,7 @@ def Task_1d_long_step(N, P=4):
 #TEST_2(10)
 #TEST_3(100, c1=1, c2=-1)
 #TEST_3_1c(10)
-#TEST_4_n(20)
+TEST_4_n(20)
 #Task_1d(100)
 #Task_1d_neumann(100)
 #Task_1d(30)
