@@ -316,12 +316,20 @@ def solve_BVP_and_plot(bvp, N, testname="", plot=True, view=225, save=False, sav
             ax1 = fig.add_subplot(1, 3, 1, projection='3d')
             ax2 = fig.add_subplot(1, 3, 2, projection='3d')
             ax3 = fig.add_subplot(1, 3, 3, projection='3d')
-
-            ax1 = plot2D(ax1, x, y, U, view=view, zlabel='$U(x,y)$',
+            ax1.xaxis.set_major_locator(ticker.MaxNLocator(3))
+            ax1.yaxis.set_major_locator(ticker.MaxNLocator(3))
+            ax1.zaxis.set_major_locator(ticker.MaxNLocator(5))
+            ax2.xaxis.set_major_locator(ticker.MaxNLocator(3))
+            ax2.yaxis.set_major_locator(ticker.MaxNLocator(3))
+            ax2.zaxis.set_major_locator(ticker.MaxNLocator(5))
+            ax3.xaxis.set_major_locator(ticker.MaxNLocator(3))
+            ax3.yaxis.set_major_locator(ticker.MaxNLocator(3))
+            ax3.zaxis.set_major_locator(ticker.MaxNLocator(5))
+            ax1 = plot2D(ax1, x, y, U, view=view, zlabel='$U$',
                          title="Numerical solution")
-            ax2 = plot2D(ax2, x, y, U_exact, view=view, zlabel='$u_{exact}(x,y)$',
+            ax2 = plot2D(ax2, x, y, U_exact, view=view, zlabel='$u$',
                          title="Exact solution")
-            ax3 = plot2D(ax3, x, y, err, view=view, zlabel="$|U - u_{exact}|$",
+            ax3 = plot2D(ax3, x, y, err, view=view, zlabel="$|\Delta u|$",
                          title="Error")
 
             formatter = ticker.ScalarFormatter()
@@ -564,10 +572,10 @@ def TEST_1c(N, P=4, c1=1, c2=1, save=False):
         return c1, c2
 
     test = BVP(f, V, gs=gs, gw=gw, gc=gc, uexact=uexact, get_Axy=get_Axy_circle_quadrant, apply_bcs=apply_bsc_circle_quadrant, G=G_circle_quadrant)
-    solve_BVP_and_plot(test, N, save=save, savename="1c", view=45)
+    solve_BVP_and_plot(test, N, save=save, savename="1c", view=20)
     print("------------------------------------------")
     print("Test convergence for TEST_1c")
-    Hconv, Econv, order = convergence(test, P=P, N=65)
+    Hconv, Econv, order = convergence(test, P=P, N=20)
     plot_convergence(Hconv, Econv, order, "Experimental order of convergence", save=save, savename="conv1c")
     print("Convergence order: " + "{:.2f}".format(order))
     print("------------------------------------------")
@@ -617,10 +625,11 @@ def Task_1d_long_step(N, P=4, save=False):
 #TEST_1(10, save=False)
 #TEST_2(10, save=False)
 #TEST_3(100, c1=1, c2=-1, save=False)
-#TEST_4(100, save=False)
-#TEST_4_long_step(10, save=False)
+#TEST_4(100, save=True)
+#TEST_4_long_step(100, save=True)
 
 """Run tasks"""
+
 #TEST_1c(100, save=False)
 #Task_1d(100)
 #Task_1d(10, save=False)

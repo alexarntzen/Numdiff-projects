@@ -335,11 +335,9 @@ def fDefault(x):
 class nonlinear_poisson(solve_interface):
     #Class for solving the nonlinear problem \Delta u =1/u^2
 
-    def __init__(self,g,N,f = None, isBoundaryFunction=None,scheme=None,dim=2,length=1, origin = 0, tol = 1e-10,
+    def __init__(self,g,N,f = fDefault, isBoundaryFunction=None,scheme=None,dim=2,length=1, origin = 0, tol = 1e-10,
                  maxIterNewton = 1000, lam=1.5,guess = None,isNeumannFunc = None, schemeNeumannFunc =None):
         # F is not used as it is 1/u^2
-        if f is None:
-            f = fDefault
         #Make discrimination
         solve_interface.__init__(self,f,g,N,isBoundaryFunction,scheme,dim,length,origin,isNeumannFunc, schemeNeumannFunc, interior = True)
         self.tol = tol

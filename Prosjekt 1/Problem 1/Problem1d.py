@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import sys
-sys.path.append('../Problem2/')
 import BVP_solver as BVP
 
 """
@@ -95,26 +95,36 @@ scheme1LongStep = lambda postion,BVP: schemeMakerLonStep(postion,BVP,mu,V)
 schemeNeumann1 = lambda postion,BVP: schemeMakerNeumann(postion,BVP,mu,V)
 
 # Solving cases with BVP solve and plotting
-nList  = [20,40,100]
+nList  = [10,30,50]
 fig = plt.figure(figsize=(18, 5))
 for i in range(len(nList)):
     ax = fig.add_subplot(1, len(nList), i+1, projection='3d')
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(3))
+    ax.yaxis.set_major_locator(ticker.MaxNLocator(3))
+    ax.zaxis.set_major_locator(ticker.MaxNLocator(5))
+
     Oppg1dNormal= BVP.linear_elliptic(f, g, nList[i],scheme = scheme1)
-    Oppg1dNormal.plot(f"$n = {nList[i]}$",ax,view= (30,-20))
+    Oppg1dNormal.plot(f"$N = {nList[i]}$",ax,view= (35,-20))
     plt.savefig("Oppgave_d_Normal.pdf")
 
 fig = plt.figure(figsize=(18, 5))
 for i in range(len(nList)):
     ax = fig.add_subplot(1, len(nList), i+1, projection='3d')
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(3))
+    ax.yaxis.set_major_locator(ticker.MaxNLocator(3))
+    ax.zaxis.set_major_locator(ticker.MaxNLocator(5))
+
     oppg1dNaumann = BVP.linear_elliptic(f, g, N, scheme=scheme1, isNeumannFunc=isNeumann, schemeNeumannFunc=schemeNeumann1)
-    oppg1dNaumann.plot("Oppgave_d_Naumann", ax,view= (30,-20))
+    oppg1dNaumann.plot(f"$N = {nList[i]}$", ax,view= (35,-20))
     plt.savefig("Oppgave_d_Naumann.pdf",)
 
 fig = plt.figure(figsize=(18, 5))
 for i in range(len(nList)):
     ax = fig.add_subplot(1, len(nList), i+1, projection='3d')
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(3))
+    ax.yaxis.set_major_locator(ticker.MaxNLocator(3))
+    ax.zaxis.set_major_locator(ticker.MaxNLocator(5))
+
     oppg1dLongStep = BVP.linear_elliptic(f, g, N, scheme=scheme1LongStep)
-    oppg1dLongStep.plot("Oppgave_d_LongStep",ax,view= (30,-20))
+    oppg1dLongStep.plot(f"$N = {nList[i]}$",ax,view= (35,-20))
     plt.savefig("Oppgave_d_LongStep.pdf",)
-
-
