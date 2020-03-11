@@ -2,6 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import BVP_solver as BVP
 
+"""
+ Check that algoritm gives correct result. This is compared to the reuslt from Del_1_test.py
+"""
+
 # Parameters
 beta = 1
 gamma = 1

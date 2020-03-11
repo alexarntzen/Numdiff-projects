@@ -178,6 +178,11 @@ class FiniteDifference:
 
         return U
 
+    @staticmethod
+    def getDomainGeometry(geometry):
+        domainIndexs = np.flatnonzero(np.logical_or(geometry[0], geometry[1]))
+        domainGeometry = geometry[:, domainIndexs]
+
 
 class Lattice():
     """
@@ -371,28 +376,44 @@ class SolveInterface(FiniteDifference):
             plt.show()
 
 def fDefault(x):
-    return 0
+    return np.array([0])
 
+class ModifiedCrankNicolson(SolveInterface):
+    def __init__(self, g, getU0=None, fDeriv=fDefault, scheme=None, T=10, k=1, N=4, isBoundaryFunction=None, dim=2, length=1, origin=0,
+                 isNeumannFunc=None, schemeNeumannFunc=None):
+        shapeObject = Shape(N, isBoundaryFunction, dim, length, origin)
+        SolveInterface.__init__(self, shapeObject, fDefault, g, scheme, isNeumannFunc, schemeNeumannFunc)
+        self.getU0 = getU0
+        self.fDeriv = fDeriv
+        self.T = T
+        self.k = k
+        self.UList = None
+        self.times = None
 
-def modified_CrankNicolson(U_0 = np.array([0]), f = fDefault , T = 10, k = 1, diffOperator = None,F_b=np.array(0), isBoundaryList=None ):
-    maxIndex = len(U_0)
-    print(isBoundaryList)
-    if diffOperator is not None:
-        Left = sparse.lil_matrix(sparse.identity(maxIndex ,format="csr")- k/2*diffOperator)
-        Left[isBoundaryList] = diffOperator[isBoundaryList]
-    else:
-        Left = sparse.identity(maxIndex)
-        diffOperator=np.zeros((maxIndex, maxIndex))
-    times = np.arange(0,T+k,k)
-    U = np.zeros((len(times), maxIndex))
-    U[0] = U_0
-    for t in range(1,len(times)):
-        right = U[t - 1] + k / 2 * diffOperator @ U[t - 1] + k * f(U[t - 1])
-        if isBoundaryList is not None:
-            right[isBoundaryList] = F_b[isBoundaryList]
-        U_temp = splin.lgmres(Left, right, U[t - 1])[0]
-        U[t] = U_temp + k / 2 * (f(U_temp) - f(U[t - 1]))
-    return U, times
+    def solveBase(self):
+        U_0 = self.shapeObject.getVector(self.getU0(*self.shapeObject.getMeshGrid()))
+        domainGeometry = self.getDomainGeometry(self.geometry)
+        return self.modifiedCrankNicolsonSolver(U_0, self.fDeriv, T = self.T, k = self.k, diffOperator = self.A, Fb = self.Fb,isBoundaryList=domainGeometry[1])
+
+    @staticmethod
+    def modifiedCrankNicolsonSolver(U_0 = np.array([0]), f = fDefault , T = 10, k = 1, diffOperator = None,Fb=np.array(0), isBoundaryList=None,mu=1 ):
+        maxIndex = len(U_0)
+        if diffOperator is not None:
+            Left = sparse.lil_matrix(sparse.identity(maxIndex ,format="csr")- k/2*diffOperator)
+            Left[isBoundaryList] = diffOperator[isBoundaryList]
+        else:
+            Left = sparse.identity(maxIndex)
+            diffOperator=np.zeros((maxIndex, maxIndex))
+        times = np.arange(0,T+k,k)
+        U = np.zeros((len(times), maxIndex))
+        U[0] = U_0
+        for t in range(1,len(times)):
+            right = U[t - 1] + k / 2 * diffOperator @ U[t - 1] + k * f(U[t - 1])
+            if isBoundaryList is not None:
+                right[isBoundaryList] = Fb[isBoundaryList]
+            U_temp = splin.lgmres(Left, right, U[t - 1])[0]
+            U[t] = U_temp + k / 2 * (f(U_temp) - f(U[t - 1]))
+        return U, times
 
 def DiseaseModelF(beta, gamma):
     # currying
@@ -402,11 +423,12 @@ def DiseaseModelF(beta, gamma):
         return np.concatenate((-beta * S * I, S * I - gamma * I))
     return F
 
-class DiseaseModel():
+
+class DiseaseModel(ModifiedCrankNicolson):
     """
     Class for solving linear elliptic PDEs.
     """
-    def __init__(self, g, getU0_I, schemeS=None, schemeI=None, beta=1, gamma=1,T=10, k=1, N=4, isBoundaryFunction=None, dim=2, length=1, origin=0,
+    def __init__(self, g, getU0_I,muS,muI,schemeS=None, beta=1, gamma=1,T=10, k=1, N=4, isBoundaryFunction=None, dim=2, length=1, origin=0,
                  isNeumannFunc=None, schemeNeumannFunc=None):
         """
         :param scheme: function returning array of coefficients.
@@ -420,39 +442,44 @@ class DiseaseModel():
         :param schemeNeumannFunc: Scheme for Neumann conditions on that point.
         """
         # Make discrimination
-        self.beta, self.gamma, self.T, self.k= beta, gamma, T, k
-        shapeObject = Shape(N, isBoundaryFunction, dim, length, origin)
-        self.solverS = SolveInterface(shapeObject, fDefault, g, schemeS, isNeumannFunc, schemeNeumannFunc)
-        self.solverI = SolveInterface(shapeObject, fDefault, g, schemeI, isNeumannFunc, schemeNeumannFunc)
 
-        self.diffOperator = sparse.bmat([[self.solverS.A, None],[None, self.solverI.A]],format = "lil")
+        ModifiedCrankNicolson.__init__(self,g,getU0_I, DiseaseModelF(beta,gamma), schemeS, T, k, N, isBoundaryFunction, dim = dim, length = length, origin = 0, isNeumannFunc = isNeumannFunc, schemeNeumannFunc = schemeNeumannFunc)
 
-        self.F_b = np.concatenate((self.solverS.Fb,self.solverI.Fb))
-        self.geometry = np.concatenate((self.solverS.geometry,self.solverI.geometry),axis=1)
-        domainIndexs = np.flatnonzero(np.logical_or(self.geometry[0], self.geometry[1]))
-        domainGeometry = self.geometry[:, domainIndexs]
+        self.muS, self.myI, self.beta, self.gamma = muS, muI, T, k
+
+        self.diffOperator = sparse.bmat([[self.A*muS, None],[None, self.A*muI]],format = "lil")
+
+        self.F_b = np.concatenate((self.Fb,self.Fb))
+        geometrySI = np.concatenate((self.geometry,self.geometry),axis=1)
+        domainIndexs = np.flatnonzero(np.logical_or(geometrySI[0], geometrySI[1]))
+        domainGeometry = geometrySI[:, domainIndexs]
 
         #Assuming R = 0 at t = 0
-        u_0_I = self.solverI.shapeObject.getVector(getU0_I(*self.solverI.shapeObject.getMeshGrid()))
-        u_0_S =  np.ones(self.solverS.shapeObject.maxIndex) - u_0_I
-        U_0 = np.concatenate((u_0_S,u_0_I))
+        I_0 = self.shapeObject.getVector(getU0_I(*self.shapeObject.getMeshGrid()))
+        S_0 =  np.ones(self.shapeObject.maxIndex) - I_0
+        U_0 = np.concatenate((S_0,I_0))
 
-        self.UList, self.times = modified_CrankNicolson(U_0, DiseaseModelF(beta,gamma), self.T, self.k, self.diffOperator, self.F_b, domainGeometry[1])
+        self.UList, self.times = self.modifiedCrankNicolsonSolver(U_0, self.fDeriv, self.T, self.k, self.diffOperator, self.F_b, domainGeometry[1])
 
     def plotS(self, time=0, title=None, ax=None, zlabel='$u(x,y)$', show=False, view=None, ulabel="U"):
         timeIndex = int(time//self.k)
-        self.solverS.U = self.UList[timeIndex,:self.solverS.shapeObject.maxIndex]
-        self.solverS.plot(title=title, ax=ax,  show=show, view=view, zlabel="Relative number of people", ulabel="S")
+        self.U = self.UList[timeIndex,:self.shapeObject.maxIndex]
+        self.plot(title=title, ax=ax,  show=show, view=view, zlabel="Relative number of people", ulabel="S")
 
     def plotI(self,time=0,title=None, ax=None, show=False, view=None):
         timeIndex = int(time//self.k)
-        self.solverI.U = self.UList[timeIndex,self.solverI.shapeObject.maxIndex:]
-        self.solverI.plot(title=title, ax=ax,  show=show, view=view, zlabel="Relative number of people", ulabel="I")
+        self.U = self.UList[timeIndex,self.shapeObject.maxIndex:]
+        self.plot(title=title, ax=ax,  show=show, view=view, zlabel="Relative number of people", ulabel="I")
 
     def plotR(self,time=0,title=None, ax=None, show=False, view=None):
         timeIndex = int(time//self.k)
-        U, I =  self.UList[timeIndex,:self.solverS.shapeObject.maxIndex], self.UList[timeIndex,self.solverI.shapeObject.maxIndex:]
+        S, I =  self.UList[timeIndex,:self.shapeObject.maxIndex], self.UList[timeIndex,self.shapeObject.maxIndex:]
         # Er denne koden helt uleselig? Synd, for den er skikkelig kul.
-        R = 1 - U -  I
-        self.solverI.U = R
-        self.solverI.plot(title=title, ax=ax,  show=show, view=view, zlabel="Relative number of people", ulabel="R")
+        R = 1 - S - I
+        self.U = R
+        self.plot(title=title, ax=ax,  show=show, view=view, zlabel="Relative number of people", ulabel="R")
+
+    def getSolution(self):
+        SList, IList =  self.UList[:,:self.shapeObject.maxIndex], self.UList[:,self.shapeObject.maxIndex:]
+        RList = 1 -SList -IList
+        return SList, IList, RList, self.times

@@ -5,7 +5,8 @@ import sys
 import BVP_solver as BVP
 
 """
-Running this file will store the relevant plots (ca 3) from problem 1d) on your computer
+Using the 2D case. Solve the model 
+1D is not implemented yet 
 """
 
 # The BVP objects accepts functions that return arrays that determine the descritization at that point
@@ -23,7 +24,7 @@ def schemeMaker(constant):
             [0, 1,  0]
         ])
         # scheme, schemecenter
-        return laplacian*constant/h**2, 1
+        return laplacian/h**2, 1
     return scheme
 
 
@@ -81,8 +82,10 @@ def getI_0(x,y):
 
 #def getU_0(x,y):return x*y
 
-test = BVP.DiseaseModel(g,np.vectorize(getI_0), schemeMaker(mu_S), schemeMaker(mu_I), beta=beta, gamma=gamma, T=T, k=k, N=N,dim=dim,
+test = BVP.DiseaseModel(g,np.vectorize(getI_0),muS = mu_S, muI = mu_I, schemeS = schemeMaker(1), beta=beta, gamma=gamma, T=T, k=k, N=N,dim=dim,
                         isNeumannFunc=isNeumann, schemeNeumannFunc=schemeNeumann)
+
+
 
 def S(frame):
     test.plotS(frame*k,show=True,title=f"t={frame*k}")

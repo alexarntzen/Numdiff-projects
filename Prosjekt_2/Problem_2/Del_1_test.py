@@ -5,6 +5,10 @@ import sys
 import scipy.integrate as integrate
 #import BVP_solver as BVP
 
+"""
+ Check that scipy gives the same result.
+"""
+
 def getDiseaseModelF(beta, gamma):
     # currying
     def F(t,N):
@@ -17,6 +21,7 @@ beta = 1
 gamma = 1
 T = 20
 I0=0.1
+
 
 
 sol = integrate.solve_ivp(getDiseaseModelF(beta,gamma), t_span = [0,T], y0 =np.array([1-I0,I0,0]), method="RK23")
