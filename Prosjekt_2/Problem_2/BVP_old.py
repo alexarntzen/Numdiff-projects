@@ -5,12 +5,17 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # For 3-d plot
 from matplotlib import cm
 
+newparams = {'figure.figsize': (8.0, 4.0), 'axes.grid': True,
+             'lines.markersize': 8, 'lines.linewidth': 2,
+             'font.size': 14}
+plt.rcParams.update(newparams)
 
 
 class FiniteDifference:
     """
     Class so that important functions have a namespace
     """
+
     @staticmethod
     def getLinearizedInterior(scheme, f, g, maxIndex, getIndex, getCoordinate, getVecor, isBoundary):
         """
@@ -132,7 +137,7 @@ class FiniteDifference:
     @staticmethod
     def applyBoundary(U_domian, geometry, g, getCoordinate, getVecor):
         """
-        :param U_domain: list form of u for all points in the domain 
+        :param U_domain: list form of u for all points in the domain
         :param g: function  returning boundry conditions.
         :param geometry: list of list specifying which values are on 0: interior, 1: boundary, 2: exterior
         :param getCoordinate: function returning coordinates from index.
@@ -156,7 +161,7 @@ class FiniteDifference:
     @staticmethod
     def applyExterior(U_domian, geometry):
         """
-        :param U_interior: list form of u for all points in the domain. 
+        :param U_interior: list form of u for all points in the domain.
         :param g: function  returning boundry conditions.
         :param geometry: list of list specifying which values are on 0: interior, 1: boundary, 2: exterior
         :param getCoordinate: function returning coordinates from index.
@@ -241,11 +246,8 @@ class Lattice():
 
     def getMeshGrid(self):
         # Only for 2D, Grid for plotting
-        dim = len(self.basis)
-        if dim == 1:
-            return self.getPosition(np.ogrid[0:(self.N + 1)])
-        elif dim == 2:
-            return self.getPosition(np.ogrid[0:(self.N + 1), 0:(self.N + 1)])
+        return self.getPosition(np.ogrid[0:(self.N + 1), 0:(self.N + 1)])
+
 
 # Denne kan også brukes i oppgave 1a, cartesian
 class Shape(Lattice):
@@ -268,6 +270,29 @@ class Shape(Lattice):
             return True
         else:
             return False
+
+    def plot2D(self,U, title=None, ax=None, zlabel='$u(x,y)$', show=False, view=None):
+        X, Y = self.getMeshGrid()
+        Ugrid = self.getLattice(U)
+
+        if ax is None:
+            fig = plt.figure(figsize=(8, 6), dpi=100)
+            ax = fig.gca(projection='3d')
+            show = True
+        ax.plot_surface(X, Y, Ugrid, rstride=1, cstride=1, cmap=cm.coolwarm)  # Surface-plot
+        if view is not None:
+            ax.view_init(view[0], view[1])
+        # Set initial view angle
+        # Set labels and show figure
+        ax.set_xlabel('$x$')
+        ax.set_ylabel('$y$')
+        if zlabel is not None:
+            ax.set_zlabel('$z$')
+        if title is not None:
+            ax.set_title(title)
+        if show:
+            plt.show()
+
 
 
 # Default functions for not Neumann conditions
@@ -299,12 +324,12 @@ class SolveInterface(FiniteDifference):
         if scheme is None:
             self.scheme = self.defaultScheme
         else:
-            self.scheme = lambda position: scheme(position, self.shapeObject)
+            self.scheme = lambda position: scheme(position, self)
 
         if schemeNeumannFunc is None:
             self.schemeNeumannFunc = schemeNeumannDefault
         else:
-            self.schemeNeumannFunc = lambda position: schemeNeumannFunc(position, self.shapeObject)
+            self.schemeNeumannFunc = lambda position: schemeNeumannFunc(position, self)
 
         self.U = None
 
@@ -329,84 +354,152 @@ class SolveInterface(FiniteDifference):
                                                                                      self.shapeObject.getCoordinate,
                                                                                      self.shapeObject.getPosition,
                                                                                      self.shapeObject.isBoundaryFunc,
-                                                                                     self.isNeumannFunc,
+                                                                                     self.shapeObject.isNeumannFunc,
                                                                                      self.schemeNeumannFunc)
+
     def defaultScheme(self, position):
         # Cartesian coordinates. Important!. 5-point stencil for laplacian.
-        return np.array(([0, 1, 0], [1, -4, 1], [0, 1, 0])) / self.shapeObject.h ** 2
+        return np.array(([0, 1, 0], [1, -4, 1], [0, 1, 0])) / self.h ** 2
 
-    def plot(self, title=None, ax=None, zlabel='$u(x,y)$', show=False, view=None, ulabel="U"):
-        coordinates = self.shapeObject.getMeshGrid()
-        Ufull = FiniteDifference.applyExterior(self.U,self.geometry)
-        Ugrid = self.shapeObject.getLattice(Ufull)
-        if Ugrid.ndim == 1:
-            if ax is None:
-                fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
-                show = True
-            ax.plot(*coordinates, Ugrid,ulabel=ulabel)  # Surface-plot
-            # Set initial view angle
-            # Set labels and show figure
-            ax.set_xlabel('$x$')
-            if zlabel is not None:
-                ax.set_ylabel('$z$')
-        elif Ugrid.ndim == 2:
-            if ax is None:
-                fig = plt.figure(figsize=(8, 6), dpi=100)
-                ax = fig.gca(projection='3d')
-                show = True
-            ax.plot_surface(*coordinates, Ugrid, rstride=1, cstride=1, cmap=cm.coolwarm)  # Surface-plot
-            if view is not None:
-                ax.view_init(view[0], view[1])
-            # Set initial view angle
-            # Set labels and show figure
-            ax.set_xlabel('$x$')
-            ax.set_ylabel('$y$')
-            if zlabel is not None:
-                ax.set_zlabel('$z$')
-        else:
-            print("Shape only supports plotting in 1 and 2 dimentions")
+    def plot(self, title=None, ax=None, zlabel='$u(x,y)$', show=False, view=None):
+        X, Y = self.shapeObject.getMeshGrid()
+        Ugrid = self.shapeObject.getLattice(self.U)
+
+        if ax is None:
+            fig = plt.figure(figsize=(8, 6), dpi=100)
+            ax = fig.gca(projection='3d')
+            show = True
+        ax.plot_surface(X, Y, Ugrid, rstride=1, cstride=1, cmap=cm.coolwarm)  # Surface-plot
+        if view is not None:
+            ax.view_init(view[0], view[1])
+        # Set initial view angle
+        # Set labels and show figure
+        ax.set_xlabel('$x$')
+        ax.set_ylabel('$y$')
+        if zlabel is not None:
+            ax.set_zlabel('$z$')
         if title is not None:
             ax.set_title(title)
         if show:
             plt.show()
 
+
+class LinearElliptic(SolveInterface):
+    """
+    Class for solving linear elliptic PDEs.
+    """
+
+    def __init__(self, f, g, N, isBoundaryFunction=None, scheme=None, dim=2, length=1, origin=0,
+                 isNeumannFunc=None, schemeNeumannFunc=None):
+        """
+        :param scheme: function returning array of coefficients.
+        :param f: function returning conditions.
+        :param g: function  returning boundry conditions.
+        :param isBoundaryFunction: return true if point is on boundary
+        :param isBoundaryFunction:
+        :param length: length of sides
+        :param origin: for plotting
+        :param isNeumannFunc: Function Returning true if point has Neumann conditions
+        :param schemeNeumannFunc: Scheme for Neumann conditions on that point.
+        """
+        # Make discrimination
+        shape = Shape(N, isBoundaryFunction, dim, length, origin)
+        SolveInterface.__init__(self,shape, f, g, scheme, isNeumannFunc, schemeNeumannFunc)
+
+        # Solve system
+        U_internal = splin.spsolve(self.A, self.Fi + self.Fb)
+
+        # Apply np.nan on boundary
+        self.U = FiniteDifference.applyExterior(U_internal, self.geometry)
+
+
 def fDefault(x):
     return 0
 
 
-def modified_CrankNicolson(U_0 = np.array([0]), f = fDefault , T = 10, k = 1, diffOperator = None,F_b=np.array(0), isBoundaryList=None ):
+class NonlinearPoisson(SolveInterface):
+    # Class for solving the nonlinear problem \Delta u =1/u^2
+    def __init__(self, g, N, f=fDefault, isBoundaryFunction=None, scheme=None, dim=2, length=1, origin=0, tol=1e-10,
+                 maxIterNewton=1000, lam=1.5, guess=None, isNeumannFunc=None, schemeNeumannFunc=None):
+        # F is not used as it is 1/u^2
+        shape = Shape(N, isBoundaryFunction, dim, length, origin)
+        # Make discrimination
+        SolveInterface.__init__(self, shape, f, g, scheme, isNeumannFunc, schemeNeumannFunc, interior=True)
+        self.tol = tol
+        self.lam = lam
+        if guess == None:
+            guess = np.ones(len(self.Fb))
+        # Solve the nonlinear problem
+        U_internal, self.error, self.iter = self.solveNonlinear1(A=self.A, u_n=guess, F_b=self.Fb,
+                                                                 maxiter=maxIterNewton, lam=self.lam, tol=self.tol)
+        # Apply boundary
+        self.U = FiniteDifference.applyBoundaryInterior(U_internal, self.g, self.geometry, self.shape.getCoordinate, self.shape.getPosition)
+
+    @staticmethod
+    def solveNonlinear1(A, u_n, F_b, lam=1.5, tol=10e-10, maxiter=100):
+        """
+        Solve the nonlinear eqation Au = \lambda/u^2 + F_b using Newton's method.
+        :param A: descretization of the problem
+        :param u_n: The inial guess for the solution u
+        :param F_b: Right hand side, using boundary points
+        :param lam: \lambda as described
+        :param tol: tolerance of max(abs( Au -\lambda/u^2 - F_b))
+        :param maxiter: maximum number of iterations of Newton's method.
+        :return U: solution
+        :return error : max(abs( Au -\lambda/u^2 - F_b))
+        :return iter: iterations
+        """
+        du = np.copy(u_n)
+        error = 100
+        iter = 0
+        F = A @ u_n - lam / u_n ** 2 + F_b
+
+        while iter < maxiter and error > tol:
+            # Standard newthons method
+
+            jacobian = A + np.diag(lam / u_n)
+
+            du = splin.lgmres(jacobian, -F, du)[0]
+
+            u_n += du
+
+            F = A @ u_n - lam / u_n ** 2 - F_b
+
+            error = np.nanmax(np.abs(F))
+            iter += 1
+
+        return u_n, error, iter
+
+    def summary(self):
+        print("Error estimate: ", self.error)
+        print("The method used", self.iter, "iterations")
+
+
+def modified_CrankNicolson(U_0 = np.array(0), f = fDefault , T = 10, k = 1, diffOperator = np.zeros(1),F_b=np.array(0), domainGeometry = np.array([False,False])):
     maxIndex = len(U_0)
-    print(isBoundaryList)
-    if diffOperator is not None:
-        Left = sparse.lil_matrix(sparse.identity(maxIndex ,format="csr")- k/2*diffOperator)
-        Left[isBoundaryList] = diffOperator[isBoundaryList]
-    else:
-        Left = sparse.identity(maxIndex)
-        diffOperator=np.zeros((maxIndex, maxIndex))
-    times = np.arange(0,T+k,k)
-    U = np.zeros((len(times), maxIndex))
+    U = np.zeros((maxIndex ,T))
     U[0] = U_0
-    for t in range(1,len(times)):
-        right = U[t - 1] + k / 2 * diffOperator @ U[t - 1] + k * f(U[t - 1])
-        if isBoundaryList is not None:
-            right[isBoundaryList] = F_b[isBoundaryList]
+    if diffOperator:
+        #domainIndexs = np.flatnonzero(np.logical_or(self.geometry[0], self.geometry[1]))
+        #domainGeometry = self.geometry[:, domainIndexs]
+        Left = sparse.lil_matrix(sparse.identity(maxIndex ,format="csr")- k/2*diffOperator)
+        Left[domainGeometry[1]] = diffOperator[domainGeometry[1]]
+    else:
+        Left = 0
+
+    for t in range(1, T):
+        right = U[t - 1] + k / 2 * U[t - 1] + k * f(U[t - 1])
+        right[domainGeometry[1]] = F_b[domainGeometry[1]]
         U_temp = splin.lgmres(Left, right, U[t - 1])[0]
         U[t] = U_temp + k / 2 * (f(U_temp) - f(U[t - 1]))
-    return U, times
+    return U
 
-def DiseaseModelF(beta, gamma):
-    # currying
-    def F(U):
-        S = U[:len(U)//2]
-        I = U[len(U)//2:]
-        return np.concatenate((-beta * S * I, S * I - gamma * I))
-    return F
 
 class DiseaseModel():
     """
     Class for solving linear elliptic PDEs.
     """
-    def __init__(self, g, getU0_I, schemeS=None, schemeI=None, beta=1, gamma=1,T=10, k=1, N=4, isBoundaryFunction=None, dim=2, length=1, origin=0,
+    def __init__(self, g, getU_0, schemeS=None, schemeI=None, beta=1, gamma=1,T=10, k=1, N=4, isBoundaryFunction=None, dim=2, length=1, origin=0,
                  isNeumannFunc=None, schemeNeumannFunc=None):
         """
         :param scheme: function returning array of coefficients.
@@ -421,38 +514,42 @@ class DiseaseModel():
         """
         # Make discrimination
         self.beta, self.gamma, self.T, self.k= beta, gamma, T, k
-        shapeObject = Shape(N, isBoundaryFunction, dim, length, origin)
-        self.solverS = SolveInterface(shapeObject, fDefault, g, schemeS, isNeumannFunc, schemeNeumannFunc)
-        self.solverI = SolveInterface(shapeObject, fDefault, g, schemeI, isNeumannFunc, schemeNeumannFunc)
-
-        self.diffOperator = sparse.bmat([[self.solverS.A, None],[None, self.solverI.A]],format = "lil")
+        self.shapeObject = Shape(N, isBoundaryFunction, dim, length, origin)
+        self.solverS = SolveInterface(self.shapeObject, fDefault, g, schemeS, isNeumannFunc, schemeNeumannFunc)
+        self.solverI = SolveInterface(self.shapeObject, fDefault, g, schemeI, isNeumannFunc, schemeNeumannFunc)
+        self.diffOperator = np.bmat([[self.solverS.A, None        ],
+                                     [None          , self.solverI]],
+                                    format = "lil")
 
         self.F_b = np.concatenate((self.solverS.Fb,self.solverI.Fb))
         self.geometry = np.concatenate((self.solverS.geometry,self.solverI.geometry),axis=1)
         domainIndexs = np.flatnonzero(np.logical_or(self.geometry[0], self.geometry[1]))
         domainGeometry = self.geometry[:, domainIndexs]
+        u_0_Lattice = getU_0(self.shapeObject.getMeshGrid())
+        U_0 = np.concatenate((self.shapeObject.getVector(u_0_Lattice),np.zeros(self.shapeObject.maxIndex)))
+        self.UList = modified_CrankNicolson(U_0, DiseaseModel.DiseaseModelF(beta,gamma), self.T, self.k, self.diffOperator, self.F_b, domainGeometry)
 
-        #Assuming R = 0 at t = 0
-        u_0_I = self.solverI.shapeObject.getVector(getU0_I(*self.solverI.shapeObject.getMeshGrid()))
-        u_0_S =  np.ones(self.solverS.shapeObject.maxIndex) - u_0_I
-        U_0 = np.concatenate((u_0_S,u_0_I))
+    @staticmethod
+    def DiseaseModelF(beta, gamma):
+        # currying
+        def F(U):
+            S = U[:len(U)]
+            I = U[len(U):]
+            return np.concatenate((-beta * S * I, S * I - gamma * I))
+        return F
 
-        self.UList, self.times = modified_CrankNicolson(U_0, DiseaseModelF(beta,gamma), self.T, self.k, self.diffOperator, self.F_b, domainGeometry[1])
+    def plotS2D(self, t):
+        # currying
+        def plot(title=None, ax=None, zlabel='$u(x,y)$', show=False, view=None):
+            S = self.solverS.applyExterior(self.UList[t][:self.shapeObject.maxIndex], self.solverS.geometry)
+            return self.shapeObject.plot2D(S, title, ax, zlabel, show, view)
+        return plot
 
-    def plotS(self, time=0, title=None, ax=None, zlabel='$u(x,y)$', show=False, view=None, ulabel="U"):
-        timeIndex = int(time//self.k)
-        self.solverS.U = self.UList[timeIndex,:self.solverS.shapeObject.maxIndex]
-        self.solverS.plot(title=title, ax=ax,  show=show, view=view, zlabel="Relative number of people", ulabel="S")
+    def plotI2D(self,t):
+        # currying
+        # Er denne koden helt uleselig? Synd, for den er skikkelig kul
+        def plot(title=None, ax=None, zlabel='$u(x,y)$', show=False, view=None):
+            I = self.solverI.applyExterior(self.UList[t][self.shapeObject.maxIndex:], self.solverI.geometry)
+            return self.shapeObject.plot2D(I, title, ax, zlabel, show, view)
+        return plot
 
-    def plotI(self,time=0,title=None, ax=None, show=False, view=None):
-        timeIndex = int(time//self.k)
-        self.solverI.U = self.UList[timeIndex,self.solverI.shapeObject.maxIndex:]
-        self.solverI.plot(title=title, ax=ax,  show=show, view=view, zlabel="Relative number of people", ulabel="I")
-
-    def plotR(self,time=0,title=None, ax=None, show=False, view=None):
-        timeIndex = int(time//self.k)
-        U, I =  self.UList[timeIndex,:self.solverS.shapeObject.maxIndex], self.UList[timeIndex,self.solverI.shapeObject.maxIndex:]
-        # Er denne koden helt uleselig? Synd, for den er skikkelig kul.
-        R = 1 - U -  I
-        self.solverI.U = R
-        self.solverI.plot(title=title, ax=ax,  show=show, view=view, zlabel="Relative number of people", ulabel="R")
