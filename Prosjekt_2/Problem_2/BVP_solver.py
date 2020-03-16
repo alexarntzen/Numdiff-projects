@@ -6,7 +6,6 @@ from mpl_toolkits.mplot3d import Axes3D  # For 3-d plot
 from matplotlib import cm
 
 
-
 class FiniteDifference:
     """
     Class so that important functions have a namespace
@@ -186,7 +185,7 @@ class FiniteDifference:
 
 class Lattice():
     """
-    Class handling isomorphism from  {Z_{N+1}}^dim to {Z_{{N+1}^dim}}
+    Class handling isomorphism from  {Z_{N+1}}^dim to {Z_{{N+1}^dim}}. In addition serves as namespace
     """
 
     def __init__(self, shape=(4, 4), size=(1, 1), origin=0):
@@ -197,7 +196,7 @@ class Lattice():
         self.length = np.max(size)
         self.h = self.length / self.N
         self.origin = origin
-        self.basis = self.getBasis(self.shape)
+        self.basis = Lattice.getBasis(self.shape)
         self.maxIndex = np.prod(self.shape)
         self.dim = self.shape.ndim
 
@@ -216,12 +215,20 @@ class Lattice():
         return self.getIndexLattice(coordinates, self.basis)
 
     @staticmethod
+    def makeGetIndex(lattice):
+        return lambda coordinates : Lattice.getIndexLattice(coordinates,lattice.basis)
+
+    @staticmethod
     def getCoordinateLattice(index, basis):
         # Inverse isomorphism  Z_{N^{dim}} --> {Z_N}^dim
         return - np.diff(index - (index % basis), append=0) // basis
 
     def getCoordinate(self, internalIndex):
         return self.getCoordinateLattice(internalIndex, self.basis)
+
+    @staticmethod
+    def makeGetCoordinate(lattice):
+        return lambda internalIndex : Lattice.getCoordinateLattice(internalIndex, lattice.basis)
 
     @staticmethod
     def getPositionLattice(coordinate, box, origin):
@@ -231,6 +238,11 @@ class Lattice():
         return self.getPositionLattice(coordinate, self.box, self.origin)
 
     @staticmethod
+    def makeGetPosition(lattice ):
+        return lambda coordinate : Lattice.getPositionLattice(coordinate, lattice.box, lattice.origion)
+
+
+    @staticmethod
     def getLatticeLatticeL(vector, shape):
         return np.reshape(vector, shape, order="F")
 
@@ -238,11 +250,30 @@ class Lattice():
         return np.reshape(vector, self.shape, order="F")
 
     @staticmethod
+    def makeGetLattice(lattice):
+        return lambda vector: Lattice.getLatticeLatticeL(vector, lattice.shape)
+
+    @staticmethod
     def getVectorLattice(lattice, maxIndex):
         return np.reshape(lattice, (maxIndex), order="F")
 
     def getVector(self,lattice):
         return np.reshape(lattice, (self.maxIndex), order="F")
+
+    @staticmethod
+    def makeGetVector(lattice):
+        return lambda Array: Lattice.getVectorLattice(Array, lattice.maxIndex)
+
+    @staticmethod
+    def getMeshGridLattice(lattice):
+        # Only for 2D, Grid for plotting
+        dim = len(lattice.basis)
+        if dim == 1:
+            return lattice.getPosition(np.ogrid[0:(lattice.N + 1)])
+        elif dim == 2:
+            return lattice.getPosition(np.ogrid[0:(lattice.N + 1), 0:(lattice.N + 1)])
+
+
 
     def getMeshGrid(self):
         # Only for 2D, Grid for plotting
@@ -264,15 +295,18 @@ class Shape(Lattice):
             N = 0
         Lattice.__init__(self, np.full(dim, N + 1), np.full(dim, length), origin)
         if isBoundaryFunc is None:
-            self.isBoundaryFunc = self.isBoundarySqare
+            self.isBoundaryFunc = Shape.makeIsBoundarySqare(self)
         else:
-            self.isBoundaryFunc = lambda coordinate: isBoundaryFunc(self.getPosition(coordinate))
+            self.isBoundaryFunc = lambda coordinate: isBoundaryFunc(Lattice.makeGetPosition(self)(coordinate))
 
-    def isBoundarySqare(self, coordinate):
-        if (self.N  in coordinate) or (0 in coordinate):
-            return True
-        else:
-            return False
+    @staticmethod
+    def makeIsBoundarySqare(lattice):
+        def isBoundarySqare(coordinate):
+            if (lattice.N  in coordinate) or (0 in coordinate):
+                return True
+            else:
+                return False
+        return isBoundarySqare
 
 
 # Default functions for not Neumann conditions
@@ -282,6 +316,51 @@ def isNeumannFalse(position):
 
 def schemeNeumannDefault(position):
     return 0, 0, 0
+
+
+def getSystem(shape, f, g, scheme, isNeumannFunc=None, schemeNeumannFunc=None, interior=False):
+
+    # Makes the passed arguments to a form FiniteDifference will accept.
+    if isNeumannFunc is None:
+        isNeumannFunc = isNeumannFalse
+    else:
+        isNeumannFunc = isNeumannFunc
+
+    scheme = lambda position: scheme(position, shape)
+
+    if schemeNeumannFunc is None:
+        schemeNeumannFunc = schemeNeumannDefault
+    else:
+        schemeNeumannFunc = lambda position: schemeNeumannFunc(position, shape)
+
+
+    # For calculating only the interor points. Nesseseary for nonlinear problems
+    if interior:
+        Amatrix, Finternal, Fboundary, geometry  = FiniteDifference.getLinearizedInterior(scheme,
+                                                                                         f,
+                                                                                         g,
+                                                                                         shape.maxIndex,
+                                                                                         Shape.makeGetIndex(shape),
+                                                                                         Shape.makeGetCoordinate(shape),
+                                                                                         Shape.makeGetPosition(shape),
+                                                                                         shape.isBoundaryFunc )
+
+    # For calculating  the interor points and the boundary points. Nesseseary for Neumann conditions and some nonlinear probles
+    else:
+        Amatrix, Finternal, Fboundary, geometry = FiniteDifference.getLinearized(scheme,
+                                                                                 f,
+                                                                                 g,
+                                                                                 shape.maxIndex,
+                                                                                 Shape.makeGetIndex(shape),
+                                                                                 Shape.makeGetCoordinate(shape),
+                                                                                 Shape.makeGetPosition(shape),
+                                                                                 shape.isBoundaryFunc ,
+                                                                                 isNeumannFunc,
+                                                                                 schemeNeumannFunc)
+
+    return Amatrix, Finternal, Fboundary, geometry
+
+
 
 
 class SolveInterface(FiniteDifference):
@@ -336,9 +415,7 @@ class SolveInterface(FiniteDifference):
                                                                                      self.shapeObject.isBoundaryFunc,
                                                                                      self.isNeumannFunc,
                                                                                      self.schemeNeumannFunc)
-    def defaultScheme(self, position):
-        # Cartesian coordinates. Important!. 5-point stencil for laplacian.
-        return np.array(([0, 1, 0], [1, -4, 1], [0, 1, 0])) / self.shapeObject.h ** 2
+
 
     def plot(self, title=None, ax=None, zlabel='$u(x,y)$', show=False, view=None, ulabel="U"):
         coordinates = self.shapeObject.getMeshGrid()

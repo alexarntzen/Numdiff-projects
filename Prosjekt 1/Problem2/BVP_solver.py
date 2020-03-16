@@ -9,6 +9,7 @@ newparams = {'figure.figsize': (8.0, 4.0), 'axes.grid': True,
              'font.size': 14}
 plt.rcParams.update(newparams)
 
+
 class finite_difference:
     """
     Class so that important functions have a namespace
