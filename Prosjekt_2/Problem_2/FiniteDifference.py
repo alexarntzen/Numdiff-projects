@@ -3,6 +3,11 @@ import scipy.sparse as sparse  # Sparse matrices
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
+def isNeumannFalse(position):
+    return False
+
+def schemeNeumannDefault(position):
+    return 0, 0, 0
 
 class FiniteDifference:
     """

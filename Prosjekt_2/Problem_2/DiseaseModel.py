@@ -2,15 +2,9 @@ import numpy as np
 import scipy.sparse as sparse  # Sparse matrices
 import scipy.sparse.linalg as splin  # Sparse matrices
 
-
 from FiniteDifference import Shape, FiniteDifference
 
 # Default functions for not Neumann conditions
-def isNeumannFalse(position):
-    return False
-
-def schemeNeumannDefault(position):
-    return 0, 0, 0
 
 
 def fDefault(x):
