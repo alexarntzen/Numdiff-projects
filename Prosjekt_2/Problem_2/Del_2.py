@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import sys
-import BVP_solver as BVP
+from DiseaseModel import DiseaseModel
 
 """
 Using the 2D case. Solve the model 
@@ -80,9 +80,12 @@ def getI_0(x,y):
     else:
         return 0
 
+def getS_0(x,y):
+    return 0.5
+
 #def getU_0(x,y):return x*y
 
-test = BVP.DiseaseModel(g,np.vectorize(getI_0),muS = mu_S, muI = mu_I, schemeS = schemeMaker(1), beta=beta, gamma=gamma, T=T, k=k, N=N,dim=dim,
+test = DiseaseModel(g,np.vectorize(getS_0),np.vectorize(getI_0),muS = mu_S, muI = mu_I, schemeS = schemeMaker(1), beta=beta, gamma=gamma, T=T, k=k, N=N,dim=dim,
                         isNeumannFunc=isNeumann, schemeNeumannFunc=schemeNeumann)
 
 

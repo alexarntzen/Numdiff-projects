@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import BVP_solver as BVP
+from DiseaseModel import ModifiedCrankNicolson, DiseaseModel
+
 
 """
  Check that algoritm gives correct result. This is compared to the reuslt from Del_1_test.py
@@ -14,7 +15,7 @@ k = 1
 I0 = 0.2
 
 # Make sure the solver works for 0D case.
-U, times = BVP.modified_CrankNicolson([1 - I0, I0],BVP.DiseaseModelF(1,1), T=20, k=k)
+U, times = ModifiedCrankNicolson.modifiedCrankNicolsonSolver([1 - I0, I0],DiseaseModel.DiseaseModelF(1,1), T=20, k=k)
 [S,I] = U.T
 R = 1 - S - I
 plt.plot(times, S, label="S")
