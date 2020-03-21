@@ -1,72 +1,25 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-import sys
+
 from DiseaseModel import DiseaseModel
+import Schemes as schemes
 
 """
 Using the 2D case. Solve the model 
 1D is not implemented yet 
 """
 
-# The BVP objects accepts functions that return arrays that determine the descritization at that point
-def schemeMaker(constant):
-    def scheme(position,BVPobject):
-        h = BVPobject.h
 
-        #   y -- >
-        # x
-        # |
-        # V
-        laplacian = np.array([
-            [0,  1, 0],
-            [1, -4, 1],
-            [0, 1,  0]
-        ])
-        # scheme, schemecenter
-        return laplacian/h**2, 1
-    return scheme
-
-
-
-def schemeNeumann(position,BVPobject):
-    # 3 point derivative. O(h^2)
-    h = BVPobject.h
-    #   y -- >
-    # x
-    # |
-    # V
-    derivS = np.array([
-        [0,   0,  0],
-        [0,   1,  -1],
-        [0,   0,  0]
-    ])
-    if position[1]== 0:
-        deriv = derivS
-    elif position[0] == 0:
-        deriv = np.rot90(derivS,-1)
-    elif position[1]== 1:
-        deriv = np.rot90(derivS,-2)
-    elif position[0]== 1:
-        deriv = np.rot90(derivS,-3)
-    else:
-        print("Neumann conditions på en kant som ikke er en kant?")
-        deriv=0
-    # returning coefficients
-    # left, rightG, rightF, schemecenter
-    return deriv, 1, 0, 1
-
-def isNeumann(position):
-        return True
 
 # Parameters
-N = 10
+N = 25
 mu_S = 0.1
 mu_I = 0.1
 beta = 0.1
-gamma = 0.1
-T = 2
-k = 0.1
+gamma = 3
+T = 20
+k = 0.01
 dim = 2
 I0 = 0.2
 # Newmann contitions
@@ -75,13 +28,16 @@ def g(x):
 
 # v from problem description
 def getI_0(x,y):
-    if x + y <= 0.3:
-        return 0.5
+    if x + 0.1*y <= 0.2:
+        return 1
     else:
         return 0
 
 def getS_0(x,y):
-    return 0.5
+    if x <= 0.2:
+        return 0
+    else:
+        return 1
 
 #def getU_0(x,y):return x*y
 
@@ -90,15 +46,16 @@ test = DiseaseModel(g,np.vectorize(getS_0),np.vectorize(getI_0),muS = mu_S, muI 
 
 
 
-def S(frame):
-    test.plotS(frame*k,show=True,title=f"t={frame*k}")
+def S(t):
+    test.plotS(t,show=True,title=f"t={t}")
 
 def I(frame):
-    test.plotI(frame*k,show=True,title=f"t={frame*k}")
+    test.plotI(frame,show=True,title=f"t={frame}")
 
 def R(frame):
     test.plotR(frame*k,show=True,title=f"t={frame*k}")
 
+I(0)
 # # Solving cases with BVP solve and plotting
 # nList  = [10,30,50]
 # fig = plt.figure(figsize=(18, 5))

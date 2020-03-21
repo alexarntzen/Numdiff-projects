@@ -107,6 +107,8 @@ class FiniteDifference:
                 S, schemeCenter = scheme(getVecor(np.copy(coordinate)))
                 for arrayCoordinate, coeff in np.ndenumerate(S):
                     # Could have used isomorphism property here
+                    if coeff == 0:
+                        continue
                     schemeCoordinate = coordinate + arrayCoordinate - schemeCenter
                     schemeIndex = getIndex(schemeCoordinate)
                     if isBoundary(schemeCoordinate) and not isNeumann(getVecor(schemeCoordinate)):
@@ -244,7 +246,7 @@ class Lattice():
         self.origin = origin
         self.basis = Lattice.getBasis(self.shape)
         self.maxIndex = np.prod(self.shape)
-        self.dim = self.shape.ndim
+        self.dim = np.size(self.shape)
 
     @staticmethod
     def getBasis(shape):
@@ -283,8 +285,8 @@ class Lattice():
         return np.reshape(vector, lattice.shape, order="F")
 
     @staticmethod
-    def getVectorLattice(lattice, maxIndex):
-        return np.reshape(lattice, (maxIndex), order="F")
+    def getVectorLattice(array, lattice):
+        return np.reshape(array, lattice.maxIndex, order="F")
 
     @staticmethod
     def makeGetVector(lattice):
@@ -298,6 +300,10 @@ class Lattice():
             return Lattice.makeGetPosition(lattice)(np.ogrid[0:(lattice.N + 1)])
         elif dim == 2:
             return Lattice.makeGetPosition(lattice)(np.ogrid[0:(lattice.N + 1), 0:(lattice.N + 1)])
+
+    @staticmethod
+    def getImageformatVector(vector, lattice):
+        return np.reshape(vector, lattice.shape)
 
 
 
@@ -326,7 +332,8 @@ class Shape(Lattice):
         return isBoundarySqare
 
     @staticmethod
-    def plotOnShape(U, shape, title=None, ax=None, zlabel='$u(x,y)$', show=False, view=None, ulabel="U", geometry=None):
+    def plotOnShape(U, shape, title=None, ax=None, ulabel='', show=False, view=None, geometry=None):
+        artist = None
         coordinates = Shape.getMeshGrid(shape)
         if geometry is not None:
             Ufull = FiniteDifference.applyExterior(U, geometry)
@@ -337,29 +344,65 @@ class Shape(Lattice):
             if ax is None:
                 fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
                 show = True
-            ax.plot(*coordinates, Ugrid, ulabel=ulabel)  # Surface-plot
+            artist = ax.plot(*coordinates, Ugrid, ulabel=ulabel)  # Surface-plot
             # Set initial view angle
             # Set labels and show figure
             ax.set_xlabel('$x$')
-            if zlabel is not None:
-                ax.set_ylabel('$z$')
         elif Ugrid.ndim == 2:
             if ax is None:
                 fig = plt.figure(figsize=(8, 6), dpi=100)
                 ax = fig.gca(projection='3d')
                 show = True
-            ax.plot_surface(*coordinates, Ugrid, rstride=1, cstride=1, cmap=cm.coolwarm)  # Surface-plot
+            max = np.nanmax(Ugrid)
+            min = np.nanmin(Ugrid)
+            artist = ax.plot_surface(*coordinates, Ugrid, rstride=1, cstride=1, cmap=cm.coolwarm, vmin=min, vmax=max)  # Surface-plot
             if view is not None:
                 ax.view_init(view[0], view[1])
             # Set initial view angle
             # Set labels and show figure
             ax.set_xlabel('$x$')
             ax.set_ylabel('$y$')
-            if zlabel is not None:
-                ax.set_zlabel('$z$')
+            if ulabel is not None:
+                ax.set_zlabel(ulabel)
         else:
             print("Shape only supports plotting in 1 and 2 dimentions")
         if title is not None:
             ax.set_title(title)
         if show:
             plt.show()
+        return artist
+
+    @staticmethod
+    def plotImage2d(U, shape, ax=None,geometry=None, animated=False, colorbar = True, title=None, show=False, **kwargs):
+        artist = None
+        if shape.dim == 2:
+            if geometry is not None:
+                Ufull = FiniteDifference.applyExterior(U, geometry)
+            else:
+                Ufull = U
+            Ugrid = Shape.getImageformatVector(Ufull, shape)
+
+            if ax is None:
+                fig, ax = plt.subplots(1)
+                show = True
+            # max = np.nanmax(Ugrid)
+            # min = np.nanmin(Ugrid)
+            artist = ax.imshow(Ugrid, animated=animated, interpolation="none", extent=[0, shape.size[0], 0, shape.size[1]], **kwargs)
+            if colorbar:
+                ax.fig.colorbar(artist, ax=ax)
+
+            # Set initial view angle
+            # Set labels and show figure
+            if title is not None:
+                ax.set_title(title)
+                ax.set_xlabel('$x$')
+                ax.set_ylabel('$y$')
+            if show:
+                plt.show()
+            return artist
+        else:
+            print("Shape only supports image in 2 dimentions")
+            return artist
+
+
+
