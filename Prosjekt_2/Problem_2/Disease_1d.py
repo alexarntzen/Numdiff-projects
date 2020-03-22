@@ -6,8 +6,8 @@ from DiseaseModel import DiseaseModel
 import Schemes as schemes
 
 """
-Using the 2D case. Solve the model 
-1D is not implemented yet 
+Using the 1D case. Solve the model 
+2D is implemeted in Disease_2d.py 
 """
 
 # Parameters

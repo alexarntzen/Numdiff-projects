@@ -3,11 +3,11 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 
 from DiseaseModel import DiseaseModel
-import Schemes as default
+import Schemes as schemes
 
 """
 Using the 2D case. Solve the model 
-1D is not implemented yet 
+1D is implemeted in Disease_1d.py 
 """
 
 # Parameters
@@ -21,27 +21,30 @@ k = 0.01
 dim = 2
 
 
-# v from problem description
+# Starting conditions for number of infected
 def getI_0(x, y):
     if x + y < 0.2 :
         return 1
     else:
         return 0
 
-
+# Starting conditions for number of suseptible
 def getS_0(x, y):
     return 1 - getI_0(x, y)
 
 
+# Inserting into DiseaseModel object that solves the problem. Note neumann conditions are
 model_2D = DiseaseModel(np.vectorize(getS_0), np.vectorize(getI_0), muS=mu_S, muI=mu_I,
-                        schemeS=default.makeLaplacian2D(),
+                        schemeS=schemes.makeLaplacian2D(),
                         getBeta=getBeta, getGamma=getGamma, T=T, k=k, N=N, dim=dim,
-                        isNeumannFunc=default.isSqareBorderNeumann,
-                        schemeNeumannFunc=default.makeSqareBorderNeumann2D())
+                        isNeumannFunc=schemes.isSqareBorderNeumann,
+                        schemeNeumannFunc=schemes.makeSqareBorderNeumann2D())
 
 #model_2D.plotTotalInTime()
 
 
+
+# Plotting functions
 def displayanimation(speed=10):
     fig, (axS, axI) = plt.subplots(1, 2)
 
