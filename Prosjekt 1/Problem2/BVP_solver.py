@@ -367,7 +367,7 @@ class nonlinear_poisson(solve_interface):
         du = np.copy(u_n)
         error = 100
         iter = 0
-        F = A @ u_n - lam / u_n ** 2 + F_b
+        F = A @ u_n - lam / u_n ** 2 - F_b
 
         while iter < maxiter and error > tol:
             #Standard newthons method

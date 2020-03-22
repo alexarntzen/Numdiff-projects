@@ -332,7 +332,7 @@ class Shape(Lattice):
         return isBoundarySqare
 
     @staticmethod
-    def plotOnShape(U, shape, title=None, ax=None, ulabel='', show=False, view=None, geometry=None):
+    def plotOnShape(U, shape, title=None, ax=None, ulabel=None, show=False, view=None, geometry=None, **kvargs):
         artist = None
         coordinates = Shape.getMeshGrid(shape)
         if geometry is not None:
@@ -342,12 +342,15 @@ class Shape(Lattice):
         Ugrid = Shape.getLatticeVector(Ufull, shape)
         if Ugrid.ndim == 1:
             if ax is None:
-                fig, ax = plt.subplots(figsize=(8, 6), dpi=100)
+                fig, ax = plt.subplots(1,1,figsize=(8, 6), dpi=100)
                 show = True
-            artist = ax.plot(*coordinates, Ugrid, ulabel=ulabel)  # Surface-plot
+            artist = ax.plot(coordinates, Ugrid, **kvargs)
             # Set initial view angle
             # Set labels and show figure
             ax.set_xlabel('$x$')
+            if ulabel is not None:
+                ax.set_ylabel(ulabel)
+
         elif Ugrid.ndim == 2:
             if ax is None:
                 fig = plt.figure(figsize=(8, 6), dpi=100)
@@ -355,7 +358,7 @@ class Shape(Lattice):
                 show = True
             max = np.nanmax(Ugrid)
             min = np.nanmin(Ugrid)
-            artist = ax.plot_surface(*coordinates, Ugrid, rstride=1, cstride=1, cmap=cm.coolwarm, vmin=min, vmax=max)  # Surface-plot
+            artist = ax.plot_surface(*coordinates, Ugrid, rstride=1, cstride=1, cmap=cm.coolwarm, vmin=min, vmax=max,**kvargs)
             if view is not None:
                 ax.view_init(view[0], view[1])
             # Set initial view angle
@@ -373,7 +376,7 @@ class Shape(Lattice):
         return artist
 
     @staticmethod
-    def plotImage2d(U, shape, ax=None,geometry=None, animated=False, colorbar = True, title=None, show=False, **kwargs):
+    def plotImage2d(U, shape, ax=None,geometry=None, animated=False, colorbar = False, title=None, show=False, **kwargs):
         artist = None
         if shape.dim == 2:
             if geometry is not None:
@@ -381,7 +384,6 @@ class Shape(Lattice):
             else:
                 Ufull = U
             Ugrid = Shape.getImageformatVector(Ufull, shape)
-
             if ax is None:
                 fig, ax = plt.subplots(1)
                 show = True
@@ -389,14 +391,14 @@ class Shape(Lattice):
             # min = np.nanmin(Ugrid)
             artist = ax.imshow(Ugrid, animated=animated, interpolation="none", extent=[0, shape.size[0], 0, shape.size[1]], **kwargs)
             if colorbar:
-                ax.fig.colorbar(artist, ax=ax)
+                ax.figure.colorbar(artist, ax=ax)
 
             # Set initial view angle
             # Set labels and show figure
             if title is not None:
                 ax.set_title(title)
-                ax.set_xlabel('$x$')
-                ax.set_ylabel('$y$')
+            ax.set_xlabel('$x$')
+            ax.set_ylabel('$y$')
             if show:
                 plt.show()
             return artist
