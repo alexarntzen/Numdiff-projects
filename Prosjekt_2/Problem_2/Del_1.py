@@ -8,14 +8,14 @@ from DiseaseModel import ModifiedCrankNicolson, DiseaseModel
 """
 
 # Parameters
-beta = 1
-gamma = 1
-T = 10
-k = 1
-I0 = 0.2
+beta = 10
+gamma = 10
+T = 1
+k = 0.001
+I0 = 0.1
 
 # Make sure the solver works for 0D case.
-U, times = ModifiedCrankNicolson.modifiedCrankNicolsonSolver([1 - I0, I0],DiseaseModel.DiseaseModelF(1,1), T=20, k=k)
+U, times = ModifiedCrankNicolson.modifiedCrankNicolsonSolver([1 - I0, I0],DiseaseModel.DiseaseModelF(beta,gamma), T=T, k=k)
 [S,I] = U.T
 R = 1 - S - I
 plt.plot(times, S, label="S")

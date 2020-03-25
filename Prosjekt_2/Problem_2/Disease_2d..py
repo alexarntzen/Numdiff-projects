@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
+import matplotlib.colors as colors
 
 from DiseaseModel import DiseaseModel
 import Schemes as schemes
@@ -11,23 +12,22 @@ Using the 2D case. Solve the model
 """
 
 # Parameters
-N = 40
-mu_S = 0.5  # rate of spread of susieptible
-mu_I = 2.5  # rate of spread of infected
-getBeta = lambda x, y: 2  # rate of suseptible getting sick
-getGamma = lambda x, y: 0.1  # rate of people recovering/dying
+N = 50
+mu_S = 3 # rate of spread of susieptible [distance^2/time]
+mu_I = 3  # rate of spread of infected [distance^2/time]
+getBeta = lambda x, y: 10*(np.abs(np.sin(15*x) + np.sin(15*y)))  # rate of suseptible getting sick [time^-1]
+getGamma = lambda x, y: 1  # rate of people recovering/dying [time^-1]
 T = 1
-k = 0.01
+k = 0.001
 dim = 2
 
 
 # Starting conditions for number of infected
 def getI_0(x, y):
-    if x + y < 0.2 :
-        return 1
+    if x +y < 0.1:
+        return 0.1
     else:
         return 0
-
 # Starting conditions for number of suseptible
 def getS_0(x, y):
     return 1 - getI_0(x, y)
@@ -45,10 +45,10 @@ model_2D = DiseaseModel(np.vectorize(getS_0), np.vectorize(getI_0), muS=mu_S, mu
 
 
 # Plotting functions
-def displayanimation(speed=10):
+def displayAnimation(animationLength=10):
     fig, (axS, axI) = plt.subplots(1, 2)
 
-    anim = model_2D.applyDiseaseAnimation(axS, axI, speed=speed, cmap=cm.Greys)
+    anim = model_2D.applyDiseaseAnimation(axS, axI, animationLength=animationLength, norm=colors.LogNorm(vmin=10e-5,vmax=1), cmap=cm.Greys)
     plt.show()
 
 
@@ -88,3 +88,11 @@ def plotImagesTimes(times, group= "I"):
         imageArtist = model_2D.plotImage(timeIndex=timeIndex, ax=axis[i], group=group,  cmap=cm.Greys)
     fig.colorbar(imageArtist, ax=axis)
     plt.show()
+
+def printEndResult():
+    S, I, times = model_2D.getSolution()
+    total = np.sum(S[0] + I[0])
+
+    print(f"Final suseptible: {np.sum(S[-1])/total}")
+    print(f"Final infected: {np.sum(S[-1])/total}")
+    print(f"Final removed: {1 - np.sum(S[-1]+ + I[-1])/total}")

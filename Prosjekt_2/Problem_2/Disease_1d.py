@@ -11,11 +11,11 @@ Using the 1D case. Solve the model
 """
 
 # Parameters
-N = 25
-mu_S = 0.5                          # rate of spread of susieptible
-mu_I = 2.5                          # rate of spread of infected
-getBeta = lambda x:  2        # rate of suseptible getting sick
-getGamma = lambda x:  2       # rate of people recovering/dying
+N = 100
+mu_S = 2                          # rate of spread of susieptible
+mu_I = 2                          # rate of spread of infected
+getBeta = lambda x: np.sin(10*x)**2       # rate of suseptible getting sick
+getGamma = lambda x:  1       # rate of people recovering/dying
 T = 1
 k = 0.01
 dim = 1
@@ -27,8 +27,8 @@ dim = 1
 
 # v from problem description
 def getI_0(x):
-    if x< 0.2 :
-        return 1
+    if x <= 0.1 :
+        return 1-100*x**2
     else:
         return 0
 
@@ -50,5 +50,5 @@ def plotTime2D(time):
     plt.legend()
     plt.show()
 
-#model_1D.plotTotalInTime()
+model_1D.plotTotalInTime()
 

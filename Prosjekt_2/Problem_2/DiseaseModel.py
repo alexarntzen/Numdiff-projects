@@ -35,7 +35,6 @@ class ModifiedCrankNicolson():
         return ModifiedCrankNicolson.modifiedCrankNicolsonSolver(U_0, fDeriv, T=T, k=k, diffOperator=Amatrix,
                                                                  Fboundary=Fboundary)
 
-    # TODO: Add get bate, gamma.
     @staticmethod
     def modifiedCrankNicolsonSolver(U_0=0, f=fZero, T=10, k=1, diffOperator=np.array(0), Fboundary=np.array(0), mu=1):
         maxIndex = np.size(U_0)
@@ -141,25 +140,30 @@ class DiseaseModel():
         return Shape.plotImage2d(U, self.shapeObject, ax=ax, show=show, geometry=self.geometryS, animated=animated,
                                  vmin=0, vmax=max, title=title, **kwargs)
 
-    def applyDiseaseAnimation(self, axS, axI,speed=10, **kvargs):
+    def applyDiseaseAnimation(self, axS, axI, animationLength=10, **kvargs):
         artistlist = []
+        fps = 24
+        numFrames = animationLength*fps
+        numTimes = self.UList.shape[0]
+        step = numTimes//numFrames
         max = np.nanmax(self.UList)
-        for timeIndex in range(len(self.times)):
+
+        for timeIndex in range(0, len(self.times), step):
             S, I = self.UList[timeIndex, :self.domainSize // 2], self.UList[timeIndex, self.domainSize // 2:]
 
             artistS = Shape.plotImage2d(S, self.shapeObject, ax=axS, geometry=self.geometryS,
                                         title=f"Susceptible",
-                                        animated=True, colorbar=False, vmin=0, vmax=max, **kvargs)
+                                        animated=True, colorbar=False, **kvargs)
 
             artistI = Shape.plotImage2d(I, self.shapeObject, ax=axI, geometry=self.geometryI,
                                         title=f"Infected",
-                                        animated=True, colorbar=False, vmin=0, vmax=max, **kvargs)
+                                        animated=True, colorbar=False,  **kvargs)
 
             artistlist.append([artistS, artistI])
             if timeIndex == 0:
                 axI.figure.colorbar(artistI, ax=[axS, axI])
 
-        return animation.ArtistAnimation(axI.figure, artistlist, blit=True, interval=self.k*1000//speed)
+        return animation.ArtistAnimation(axI.figure, artistlist, blit=True, interval=1000/fps)
 
     def getSolution(self):
         SList, IList = self.UList[:, :self.domainSize // 2], self.UList[:, self.domainSize // 2:]
@@ -169,9 +173,8 @@ class DiseaseModel():
     def DiseaseModelF(beta, gamma):
         # currying
         def F(U):
-            S = U[:len(U) // 2]
-            I = U[len(U) // 2:]
-            return np.concatenate((-beta * S * I, S * I - gamma * I))
+            S, I = np.split(U,2)
+            return np.concatenate((-beta * S * I, beta * S * I - gamma * I))
 
         return F
 
@@ -184,16 +187,20 @@ class DiseaseModel():
         else:
             betaLattice = getBeta(*Shape.getMeshGrid(shape))
             gammaLattice = getGamma(*Shape.getMeshGrid(shape))
-        if np.size(betaLattice) == 1 and np.size(gammaLattice) == 1:
+
+        if np.size(betaLattice) == 1:
             beta = betaLattice
-            gamma = gammaLattice
         else:
             beta = Shape.getVectorLattice(betaLattice, shape)
+
+        if np.size(gammaLattice) == 1:
+            gamma = gammaLattice
+        else:
             gamma = Shape.getVectorLattice(gammaLattice, shape)
 
         def F(U):
             S, I = np.split(U, 2)
-            return np.concatenate((-beta * S * I, S * I - gamma * I))
+            return np.concatenate((-beta * S * I, beta*S * I - gamma * I))
 
         return F
 

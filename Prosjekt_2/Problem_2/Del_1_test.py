@@ -15,11 +15,10 @@ def getDiseaseModelF(beta, gamma):
         return np.array([-beta * N[0]*N[1], beta * N[0] * N[1] - gamma * N[1], gamma * N[1]])
     return F
 
-mu_S = 0.1
-mu_I = 0.1
-beta = 1
-gamma = 1
-T = 20
+
+beta = 10
+gamma = 10
+T = 1
 I0=0.1
 
 
@@ -29,7 +28,7 @@ sol = integrate.solve_ivp(getDiseaseModelF(beta,gamma), t_span = [0,T], y0 =np.a
 plt.plot(sol.t, S, label="S")
 plt.plot(sol.t, I, label="I")
 plt.plot(sol.t, R, label="R")
-plt.title(f"beta = ${beta}, gamma = ${gamma}, scipy")
+plt.title(f"$\\beta$ = {beta}, $\\gamma$ = {gamma}, scipy")
 
 plt.legend()
 plt.show()
