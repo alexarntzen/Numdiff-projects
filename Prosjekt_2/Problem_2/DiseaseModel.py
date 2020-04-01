@@ -3,50 +3,83 @@ import scipy.sparse as sparse  # Sparse matrices
 import scipy.sparse.linalg as splin  # Sparse matrices
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-
 from FiniteDifference import Shape, FiniteDifference
 
+"""
+This file contains the modified numerical solver and an implementation for solving a disease model- 
+"""
 
 # Default function used since the problem is not in the form Ax = F is not used
 def fZero(*args):
     return np.array([0])
 
+# Newmann contitions
+def gOne(*args):
+    return 1
 
 # Newmann contitions
-def gDefault(x):
+def gDefault(*args):
     return 0
 
 
 class ModifiedCrankNicolson():
     @staticmethod
     def modifiedCrankNicolson(getU0=None, fDeriv=fZero, scheme=None, T=10, k=1, shape=None,
-                              isNeumannFunc=None, schemeNeumannFunc=None, g=gDefault, mu=1):
+                              isNeumannFunc=None, schemeNeumannFunc=None, g=gDefault):
         Amatrix, Finterior, Fboundary, geometry = FiniteDifference.getSystem(shape=shape,
                                                                              f=fZero,
-                                                                             g=g,
+                                                                             g=gOne,
                                                                              scheme=scheme,
                                                                              isNeumannFunc=isNeumannFunc,
-                                                                             schemeNeumannFunc=schemeNeumannFunc)
+                                                                             schemeNeumannFunc=schemeNeumannFunc,
+                                                                             interior=True)
+        if shape.dim == 1:
+            def getBoundaryVals(t):
+                return Shape.getVectorLattice(g(Shape.getMeshGrid(shape), t), shape)
+            U_0 = Shape.getVectorLattice(getU0(Shape.getMeshGrid(shape)), shape)
 
-        domainIndexs = np.flatnonzero(np.logical_or(geometry[0], geometry[1]))
-        isBoundaryList = FiniteDifference.getDomainGeometry(geometry)[1]
-        U_0 = Shape.getVectorLattice(getU0(*Shape.getMeshGrid(shape)), shape)[domainIndexs]
+        else:
+            def getBoundaryVals(t):
+                return Shape.getVectorLattice(g(*Shape.getMeshGrid(shape), t), shape)
+            U_0 = Shape.getVectorLattice(getU0(*Shape.getMeshGrid(shape)), shape)
 
         return ModifiedCrankNicolson.modifiedCrankNicolsonSolver(U_0, fDeriv, T=T, k=k, diffOperator=Amatrix,
-                                                                 Fboundary=Fboundary)
+                                                                 boundaryCoeffs=-Fboundary, g=getBoundaryVals,
+                                                                 geometry=geometry)
 
     @staticmethod
-    def modifiedCrankNicolsonSolver(U_0=0, f=fZero, T=10, k=1, diffOperator=np.array(0), Fboundary=np.array(0), mu=1):
-        maxIndex = np.size(U_0)
-        Left = sparse.csr_matrix(sparse.identity(maxIndex, format="csr") - k / 2 * diffOperator)
 
+    def modifiedCrankNicolsonSolver(U_0=0, f=fZero, T=10, k=1, diffOperator=np.array(0), boundaryCoeffs=np.array(0), g=gOne, geometry=[None, None, None]):
+        """
+        This is the most impotant funciton that actually does the temportal iteration
+        """
+        U_0 = np.array(U_0)
+        internalIndex = np.size(U_0[geometry[0]])
+        maxIndex = np.size(U_0)
+        Left = sparse.csc_matrix(sparse.identity(internalIndex, format="csc") - k / 2 * diffOperator)
+        solveLeft = splin.factorized(Left)
         times = np.arange(0, T + k, k)
         U = np.zeros((len(times), maxIndex))
         U[0] = U_0
         for t in range(1, len(times)):
-            right = U[t - 1] + k / 2 * sparse.csr_matrix.dot(diffOperator,  U[t - 1]) + k * f(U[t - 1]) - Fboundary
-            U_temp = splin.lgmres(Left, right, U[t - 1])[0]
-            U[t] = U_temp + k / 2 * (f(U_temp) - f(U[t - 1]))
+            if geometry[0] is None:
+                boundaryValsPrev =g(times[t-1])
+                boundaryPrev = boundaryCoeffs * boundaryValsPrev
+                boundaryVals = g(times[t])
+                boundary = boundaryCoeffs * boundaryVals
+                right = U[t - 1] + k / 2 * sparse.csc_matrix.dot(diffOperator, U[t - 1]) + k * f(U[t - 1]) + k / 2 * (boundaryPrev + boundary)
+                U_temp = solveLeft(right)
+                U[t] = U_temp + k / 2 * (f(U_temp) - f(U[t - 1]))
+            else:
+                boundaryValsPrev = (g(times[t-1])*np.ones(maxIndex))[geometry[0]]
+                boundaryPrev = boundaryCoeffs*boundaryValsPrev
+                boundaryValsFull = np.array(g(times[t]))*np.ones(maxIndex)
+                boundaryVals = boundaryValsFull[geometry[0]]
+                boundary = boundaryCoeffs * boundaryVals
+                right = U[t - 1, geometry[0]] + k / 2 * sparse.csc_matrix.dot(diffOperator,  U[t - 1, geometry[0]]) + k * f(U[t - 1, geometry[0]]) + k/2*(boundaryPrev + boundary)
+                U_temp = solveLeft(right)
+                Uinter = U_temp + k / 2 * (f(U_temp) - f(U[t - 1,geometry[0]]))
+                U[t] = FiniteDifference.applyBoundaryInterior(Uinter, geometry=geometry, boundaryVector=boundaryValsFull)
         return U, times
 
 # Function used to sum the final result.
@@ -81,15 +114,17 @@ class DiseaseModel():
 
         AmatrixS, FinternalS, FboundaryS, self.geometryS = FiniteDifference.getSystem(shape=self.shapeObject,
                                                                                       f=fZero,
-                                                                                      g=g,
+                                                                                      g=gOne,
                                                                                       scheme=schemeS,
                                                                                       isNeumannFunc=isNeumannFunc,
-                                                                                      schemeNeumannFunc=schemeNeumannFunc)
+                                                                                      schemeNeumannFunc=schemeNeumannFunc,
+                                                                                      interior=True)
+
 
         self.geometryI = self.geometryS
         self.Fboundary = np.concatenate((muS * FboundaryS, muI * FboundaryS))
 
-        self.diffOperator = sparse.bmat([[AmatrixS * muS, None], [None, AmatrixS * muI]], format="csr")
+        self.diffOperator = sparse.bmat([[AmatrixS * muS, None], [None, AmatrixS * muI]], format="csc")
 
         geometrySI = np.concatenate((self.geometryS, self.geometryI), axis=1)
         domainGeometrySI = FiniteDifference.getDomainGeometry(geometrySI)
@@ -110,7 +145,9 @@ class DiseaseModel():
                                                                                    f=diseaseModelF,
                                                                                    T=T, k=k,
                                                                                    diffOperator=self.diffOperator,
-                                                                                   Fboundary=self.Fboundary)
+                                                                                   boundaryCoeffs=-self.Fboundary,
+                                                                                   geometry=geometrySI,
+                                                                                   g = gDefault)
 
     def plot(self, timeIndex=0, ax=None, group="I", show=False, view=None, **kwargs):
         if group == "S":
@@ -128,17 +165,15 @@ class DiseaseModel():
     def plotImage(self, timeIndex=0, ax=None, group="I", show=False, animated=False, **kwargs):
         if group == "S":
             U = self.UList[int(timeIndex), :self.domainSize // 2]
-            title = f"Susceptible at t = {timeIndex * self.k}"
 
         elif group == "I":
             U = self.UList[int(timeIndex), self.domainSize // 2:]
-            title = f"Infected at t = {timeIndex * self.k}"
         else:
             print(f"Group: {group} not found")
             return None
         max = np.nanmax(U)
         return Shape.plotImage2d(U, self.shapeObject, ax=ax, show=show, geometry=self.geometryS, animated=animated,
-                                 vmin=0, vmax=max, title=title, **kwargs)
+                                 **kwargs)
 
     def applyDiseaseAnimation(self, axS, axI, animationLength=10, **kvargs):
         artistlist = []

@@ -16,14 +16,15 @@ def getDiseaseModelF(beta, gamma):
     return F
 
 
-beta = 10
+beta = 20
 gamma = 10
 T = 1
-I0=0.1
+I0=0.5
+S0=1-I0
 
 
 
-sol = integrate.solve_ivp(getDiseaseModelF(beta,gamma), t_span = [0,T], y0 =np.array([1-I0,I0,0]), method="RK23")
+sol = integrate.solve_ivp(getDiseaseModelF(beta,gamma), t_span = [0,T], y0 =np.array([S0,I0,0]), method="RK45")
 [S,I,R] = sol.y
 plt.plot(sol.t, S, label="S")
 plt.plot(sol.t, I, label="I")

@@ -3,82 +3,25 @@ import scipy.sparse as sparse  # Sparse matrices
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
+
 def isNeumannFalse(position):
     return False
 
+
 def schemeNeumannDefault(position):
     return 0, 0, 0
+
 
 class FiniteDifference:
     """
     Class so that important functions have a namespace
     """
     @staticmethod
-    def getLinearizedInterior(scheme, f, g, maxIndex, getIndex, getCoordinate, getVecor, isBoundary):
+    def getLinearizedInterior(scheme, f, g, maxIndex, getIndex, getCoordinate, getVecor, isBoundary, isNeumann,
+                              schemeNeumann):
         """
         Function return the appropriate linearized BVP problem for parameters given. Only on the internal points.
-        :param scheme: function returning array of coefficients.
-        :param f: function returning conditions.
-        :param g: function  returning boundry conditions.
-        :param maxIndex: number of points in computation .
-        :param getIndex: function returning index from coordinates.
-        :param getCoordinate: function returning coordinates from index.
-        :param getVecor: function returning position from coordinates.
-        :param isBoundary: return true if point is on boundary
-        :return A: matrix discretization from scheme
-        :return Fi: Right side of linearized BVP problem for interior points
-        :return Fb: Right side of linearized BVP problem for boundary points
-        :return geometry: list of list specifying which values are on 0: interior, 1: boundary, 2: exterior
-        """
-        A = sparse.lil_matrix((maxIndex, maxIndex), dtype=np.float64)
-        boundaryF = np.zeros(maxIndex)
-        interiorF = np.zeros(maxIndex)
-        geometry = np.full((3, maxIndex), False, dtype=bool)
-        for index in range(maxIndex):
-            coordinate = getCoordinate(index)
-            if not isBoundary(coordinate):
-                geometry[0][index] = True
-                # Scheme must return array  in same coordinate order as coordinates
-                interiorF[index] = f(getVecor(coordinate))
-                S, schemeCenter = scheme(getVecor(np.copy(coordinate)))
-                for arrayCoordinate, coeff in np.ndenumerate(S):
-                    # Could have used isomorphism property here
-                    schemeCoordinate = coordinate + arrayCoordinate - schemeCenter
-                    schemeIndex = getIndex(schemeCoordinate)
-                    if isBoundary(schemeCoordinate):
-                        boundaryF[index] += - coeff * g(getVecor(np.copy(schemeCoordinate)))
-                        geometry[1][schemeIndex] = True
-                    elif coeff != 0:
-                        A[index, schemeIndex] = coeff
-        np.logical_and(np.logical_not(geometry[0]), np.logical_not(geometry[1]), geometry[2])
-        return sparse.csr_matrix(A[geometry[0]])[:, geometry[0]], interiorF[geometry[0]], boundaryF[
-            geometry[0]], geometry
-
-    @staticmethod
-    def applyBoundaryInterior(U_interior, g, geometry, getCoordinate, getVecor):
-        """
-        :param U_interior: list form of u for interior points
-        :param g: function  returning boundry conditions.
-        :param geometry: list of list specifying which values are on 0: interior, 1: boundary, 2: exterior
-        :param getCoordinate: function returning coordinates from index.
-        :param getVecor: function returning position from coordinates.
-        :return U: list of u values for all points in domain and exterior
-        """
-        maxIndex = geometry.shape[1]
-        U = np.zeros(maxIndex, dtype=np.float64)
-        interiorIndexs = np.flatnonzero(geometry[0])
-        bounderyIndexs = np.flatnonzero(geometry[1])
-        exteriorIndexs = np.flatnonzero(geometry[2])
-        U[interiorIndexs] = U_interior
-        U[bounderyIndexs] = [g(getVecor(getCoordinate(index))) for index in bounderyIndexs]
-        U[exteriorIndexs] = np.nan
-        return U
-
-    @staticmethod
-    def getLinearized(scheme, f, g, maxIndex, getIndex, getCoordinate, getVecor, isBoundary, isNeumann, schemeNeumann,
-                      ):
-        """
-        Function return the appropriate linearized BVP problem for parameters given. Only on the internal points.
+        Neumann points counts as internal
         :param scheme: function returning array of coefficients.
         :param f: function returning conditions.
         :param g: function  returning boundry conditions.
@@ -112,6 +55,87 @@ class FiniteDifference:
                     schemeCoordinate = coordinate + arrayCoordinate - schemeCenter
                     schemeIndex = getIndex(schemeCoordinate)
                     if isBoundary(schemeCoordinate) and not isNeumann(getVecor(schemeCoordinate)):
+                        boundaryF[index] += - coeff * g(getVecor(np.copy(schemeCoordinate)))
+                        geometry[1][schemeIndex] = True
+                    if coeff != 0:
+                        A[index, schemeIndex] = coeff
+
+            elif isNeumann(getVecor(coordinate)):
+                left, Gcoeff, Fcoeff, schemeCenter = schemeNeumann(getVecor(np.copy(coordinate)))
+                for arrayCoordinate, coeff in np.ndenumerate(left):
+                    schemeCoordinate = coordinate + arrayCoordinate - schemeCenter
+                    schemeIndex = getIndex(schemeCoordinate)
+                    if coeff != 0:
+                        A[index, schemeIndex] = coeff
+                boundaryF[index] = -Gcoeff * g(getVecor(np.copy(coordinate))) - Fcoeff * f(getVecor(np.copy(coordinate)))
+                geometry[0][index] = True
+
+        np.logical_and(np.logical_not(geometry[0]), np.logical_not(geometry[1]), geometry[2])
+        indexes = geometry[0]
+        return sparse.csr_matrix(A[indexes])[:, indexes], interiorF[indexes], boundaryF[indexes], geometry
+
+    @staticmethod
+    def applyBoundaryInterior(U_interior, geometry, g=None, getCoordinate=None, getVecor=None, boundaryVector=None):
+        """
+        :param U_interior: list form of u for interior points
+        :param g: function  returning boundry conditions.
+        :param geometry: list of list specifying which values are on 0: interior, 1: boundary, 2: exterior
+        :param getCoordinate: function returning coordinates from index.
+        :param getVecor: function returning position from coordinates.
+        :return U: list of u values for all points in domain and exterior
+        """
+        maxIndex = geometry.shape[1]
+        U = np.zeros(maxIndex, dtype=np.float64)
+        interiorIndexs = np.flatnonzero(geometry[0])
+        bounderyIndexs = np.flatnonzero(geometry[1])
+        exteriorIndexs = np.flatnonzero(geometry[2])
+        U[interiorIndexs] = U_interior
+        if boundaryVector is not None:
+            U[bounderyIndexs] = [boundaryVector[index] for index in bounderyIndexs]
+            U[exteriorIndexs] = [boundaryVector[index] for index in exteriorIndexs]
+        else:
+            U[bounderyIndexs] = [g(getVecor(getCoordinate(index))) for index in bounderyIndexs]
+            U[exteriorIndexs] = np.nan
+        return U
+
+    @staticmethod
+    def getLinearized(scheme, f, g, maxIndex, getIndex, getCoordinate, getVecor, isBoundary, isNeumann, schemeNeumann,
+                      ):
+        """
+        Function return the appropriate linearized BVP problem for parameters given. Only on the internal points.
+        :param scheme: function returning array of coefficients.
+        :param f: function returning conditions.
+        :param g: function  returning boundry conditions.
+        :param maxIndex: number of points in computation .
+        :param getIndex: function returning index from coordinates.
+        :param getCoordinate: function returning coordinates from index.
+        :param getVecor: function returning position from coordinates.
+        :param isBoundary: return true if point is on boundary
+        :param isNeumann: Function Returning true if point has Neumann conditions
+        :param schemeNeumann: Scheme for Neumann conditions on that point.
+        :return A: matrix discretization from scheme
+        :return Fi: Right side of linearized BVP problem for interior points
+        :return Fb: Right side of linearized BVP problem for boundary points
+        :return geometry: list of list specifying which values are on 0: interior, 1: boundary, 2: exterior, 4:Neimann
+        """
+        A = sparse.lil_matrix((maxIndex, maxIndex), dtype=np.float64)
+        boundaryF = np.zeros(maxIndex)
+        interiorF = np.zeros(maxIndex)
+        geometry = np.full((3, maxIndex), False, dtype=bool)
+        for index in range(maxIndex):
+            coordinate = getCoordinate(index)
+            if not isBoundary(coordinate):
+                # Scheme must return array  in same coordinate order as coordinates
+                interiorF[index] = f(getVecor(coordinate))
+                geometry[0][index] = True
+                S, schemeCenter = scheme(getVecor(np.copy(coordinate)))
+                for arrayCoordinate, coeff in np.ndenumerate(S):
+                    # Could have used isomorphism property here
+                    if coeff == 0:
+                        continue
+                    schemeCoordinate = coordinate + arrayCoordinate - schemeCenter
+                    schemeIndex = getIndex(schemeCoordinate)
+                    if isBoundary(schemeCoordinate) and not isNeumann(getVecor(schemeCoordinate)):
                         A[schemeIndex, schemeIndex] = 1
                         boundaryF[schemeCoordinate] = g(getVecor(schemeCoordinate))
                         geometry[1][schemeIndex] = True
@@ -126,7 +150,7 @@ class FiniteDifference:
                     schemeIndex = getIndex(schemeCoordinate)
                     if coeff != 0:
                         A[index, schemeIndex] = coeff
-                boundaryF[index] = rightG * g(getVecor(np.copy(coordinate))) + rightF * f(getVecor(np.copy(coordinate)))
+                boundaryF[index] = -rightG * g(getVecor(np.copy(coordinate))) -rightF * f(getVecor(np.copy(coordinate)))
                 geometry[1][index] = True
 
         np.logical_and(np.logical_not(geometry[0]), np.logical_not(geometry[1]), geometry[2])
@@ -209,11 +233,11 @@ class FiniteDifference:
                                                                                              g,
                                                                                              shape.maxIndex,
                                                                                              Shape.makeGetIndex(shape),
-                                                                                             Shape.makeGetCoordinate(
-                                                                                                 shape),
-                                                                                             Shape.makeGetPosition(
-                                                                                                 shape),
-                                                                                             shape.isBoundaryFunc)
+                                                                                             Shape.makeGetCoordinate(shape),
+                                                                                             Shape.makeGetPosition(shape),
+                                                                                             shape.isBoundaryFunc,
+                                                                                             isNeumannFunc,
+                                                                                             schemeNeumannFuncPassed)
 
         # For calculating  the interor points and the boundary points. Nesseseary for Neumann conditions and some nonlinear probles
         else:
@@ -261,7 +285,7 @@ class Lattice():
 
     @staticmethod
     def makeGetIndex(lattice):
-        return lambda coordinates : Lattice.getIndexLattice(coordinates,lattice.basis)
+        return lambda coordinates: Lattice.getIndexLattice(coordinates, lattice.basis)
 
     @staticmethod
     def getCoordinateLattice(index, basis):
@@ -270,15 +294,15 @@ class Lattice():
 
     @staticmethod
     def makeGetCoordinate(lattice):
-        return lambda internalIndex : Lattice.getCoordinateLattice(internalIndex, lattice.basis)
+        return lambda internalIndex: Lattice.getCoordinateLattice(internalIndex, lattice.basis)
 
     @staticmethod
     def getPositionLattice(coordinate, box, origin):
         return origin + coordinate * box
 
     @staticmethod
-    def makeGetPosition(lattice ):
-        return lambda coordinate : Lattice.getPositionLattice(coordinate, lattice.box, lattice.origin)
+    def makeGetPosition(lattice):
+        return lambda coordinate: Lattice.getPositionLattice(coordinate, lattice.box, lattice.origin)
 
     @staticmethod
     def getLatticeVector(vector, lattice):
@@ -303,8 +327,7 @@ class Lattice():
 
     @staticmethod
     def getImageformatVector(vector, lattice):
-        return np.reshape(vector, lattice.shape)
-
+        return np.reshape(vector, lattice.shape, )[::-1]
 
 
 # Denne kan også brukes i oppgave 1a, cartesian
@@ -312,6 +335,7 @@ class Shape(Lattice):
     """
     Class to handle the boundary and create sqares or other shapes
     """
+
     def __init__(self, N, isBoundaryFunc=None, dim=2, length=1, origin=0):
         if dim == 0:
             dim = 1
@@ -325,10 +349,11 @@ class Shape(Lattice):
     @staticmethod
     def makeIsBoundarySqare(lattice):
         def isBoundarySqare(coordinate):
-            if (lattice.N  in coordinate) or (0 in coordinate):
+            if (lattice.N in coordinate) or (0 in coordinate):
                 return True
             else:
                 return False
+
         return isBoundarySqare
 
     @staticmethod
@@ -342,7 +367,7 @@ class Shape(Lattice):
         Ugrid = Shape.getLatticeVector(Ufull, shape)
         if Ugrid.ndim == 1:
             if ax is None:
-                fig, ax = plt.subplots(1,1,figsize=(8, 6), dpi=100)
+                fig, ax = plt.subplots(1, 1, figsize=(8, 6), dpi=100)
                 show = True
             artist = ax.plot(coordinates, Ugrid, **kvargs)
             # Set initial view angle
@@ -358,7 +383,8 @@ class Shape(Lattice):
                 show = True
             max = np.nanmax(Ugrid)
             min = np.nanmin(Ugrid)
-            artist = ax.plot_surface(*coordinates, Ugrid, rstride=1, cstride=1, cmap=cm.coolwarm, vmin=min, vmax=max,**kvargs)
+            artist = ax.plot_surface(*coordinates, Ugrid, rstride=1, cstride=1, cmap=cm.coolwarm, vmin=min, vmax=max,
+                                     **kvargs)
             if view is not None:
                 ax.view_init(view[0], view[1])
             # Set initial view angle
@@ -376,7 +402,7 @@ class Shape(Lattice):
         return artist
 
     @staticmethod
-    def plotImage2d(U, shape, ax=None,geometry=None, animated=False, colorbar = False, title=None, show=False, **kwargs):
+    def plotImage2d(U, shape, ax=None, geometry=None, animated=False, colorbar=False, title=None, show=False, **kwargs):
         artist = None
         if shape.dim == 2:
             if geometry is not None:
@@ -389,7 +415,8 @@ class Shape(Lattice):
                 show = True
             # max = np.nanmax(Ugrid)
             # min = np.nanmin(Ugrid)
-            artist = ax.imshow(Ugrid, animated=animated, interpolation="none", extent=[0, shape.size[0], 0, shape.size[1]], **kwargs)
+            artist = ax.imshow(Ugrid, animated=animated, interpolation="none",
+                               extent=[0, shape.size[0], 0, shape.size[1]], **kwargs)
             if colorbar:
                 ax.figure.colorbar(artist, ax=ax)
 
@@ -405,6 +432,3 @@ class Shape(Lattice):
         else:
             print("Shape only supports image in 2 dimentions")
             return artist
-
-
-

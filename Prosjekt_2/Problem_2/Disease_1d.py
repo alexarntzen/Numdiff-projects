@@ -9,26 +9,29 @@ import Schemes as schemes
 Using the 1D case. Solve the model 
 2D is implemeted in Disease_2d.py 
 """
-
+def hole(x):
+    if x > 0.3 and x<0.6:
+        return 0
+    else:
+        return 1
 # Parameters
+freq = 1
 N = 100
-mu_S = 2                          # rate of spread of susieptible
-mu_I = 2                          # rate of spread of infected
-getBeta = lambda x: np.sin(10*x)**2       # rate of suseptible getting sick
-getGamma = lambda x:  1       # rate of people recovering/dying
-T = 1
-k = 0.01
+mu_S = freq * 0.5                          # rate of spread of susieptible
+mu_I = freq * 0.5                         # rate of spread of infected
+getBeta = lambda x: freq * 5  # rate of suseptible getting sick
+getGamma = lambda x:  freq * 1       # rate of people recovering/dying
+T = 10
+k = 0.001
 dim = 1
 
 
-
-
-
+# getBeta = np.vectorize(getBeta)
 
 # v from problem description
 def getI_0(x):
     if x <= 0.1 :
-        return 1-100*x**2
+        return (1-100*x**2)/100
     else:
         return 0
 
